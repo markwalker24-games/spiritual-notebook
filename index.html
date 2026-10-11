@@ -99,6 +99,7 @@ a.sun-talk svg { color: var(--accent); }
 .sun-q { flex: 1; min-width: 0; font-size: 15px; line-height: 1.45; padding-top: 2px; }
 .sun-write { flex-shrink: 0; min-height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--accent); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; margin-top: -4px; }
 
+.filter-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding-top: 4px; }
 .filters { display: flex; align-items: center; gap: 7px; padding-block: 2px 8px; flex-wrap: wrap; }
 .chip { min-height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
 .chip.on { border: 2px solid var(--fg); padding: 0 11px; }
@@ -411,7 +412,8 @@ a.sun-talk svg { color: var(--accent); }
 
     if (ui.searching) h += '<div class="search"><label class="sr" for="q">Search notes</label><input id="q" type="search" placeholder="Search your notes" value="' + esc(ui.query) + '" autocomplete="off"></div>';
 
-    h += '<div class="filters">' +
+    h += '<div class="filter-label" id="filter-label">Filter</div>';
+    h += '<div class="filters" role="group" aria-labelledby="filter-label">' +
       '<button class="chip' + (!f ? ' on' : '') + '" data-act="filter-all">All</button>' +
       '<button class="chip star' + (f && f.type === 'star' ? ' on' : '') + '" data-act="filter-star" aria-label="Starred lines, ' + starCount + '">' + ICON.star(true, 15) + starCount + '</button>' +
       '<button class="chip todo' + (f && f.type === 'todo' ? ' on' : '') + '" data-act="filter-todo" aria-label="Open to-dos, ' + todoCount + '">' + ICON.todo + todoCount + '</button>' +

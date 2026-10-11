@@ -165,7 +165,8 @@
 
     if (ui.searching) h += '<div class="search"><label class="sr" for="q">Search notes</label><input id="q" type="search" placeholder="Search your notes" value="' + esc(ui.query) + '" autocomplete="off"></div>';
 
-    h += '<div class="filters">' +
+    h += '<div class="filter-label" id="filter-label">Filter</div>';
+    h += '<div class="filters" role="group" aria-labelledby="filter-label">' +
       '<button class="chip' + (!f ? ' on' : '') + '" data-act="filter-all">All</button>' +
       '<button class="chip star' + (f && f.type === 'star' ? ' on' : '') + '" data-act="filter-star" aria-label="Starred lines, ' + starCount + '">' + ICON.star(true, 15) + starCount + '</button>' +
       '<button class="chip todo' + (f && f.type === 'todo' ? ' on' : '') + '" data-act="filter-todo" aria-label="Open to-dos, ' + todoCount + '">' + ICON.todo + todoCount + '</button>' +
