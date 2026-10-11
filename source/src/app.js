@@ -240,8 +240,17 @@
   function renderSunday() {
     var s = sunday();
     if (!s) return '';
-    var h = '<section class="sunday" aria-labelledby="sun-label"><div class="sun-head"><span id="sun-label" class="sun-label">This Sunday in quorum' + (s.date ? ' · ' + esc(s.date) : '') + '</span>' +
-      (ui.sundayNew ? '<span class="sun-new">New</span>' : '') + '</div>';
+    // Starts open; stays closed only until the presidency posts something new.
+    var collapsed = data.sundayCollapsed === sundayHash();
+    var sum = s.questions.length ? s.questions.length + (s.questions.length === 1 ? ' question' : ' questions') : '';
+    var h = '<section class="sunday' + (collapsed ? ' closed' : '') + '" aria-labelledby="sun-label">' +
+      '<button class="sun-head" data-act="sun-toggle" aria-expanded="' + !collapsed + '" aria-controls="sun-body">' +
+      '<span id="sun-label" class="sun-label">This Sunday in quorum' + (s.date ? ' · ' + esc(s.date) : '') + '</span>' +
+      (ui.sundayNew ? '<span class="sun-new">New</span>' : '') +
+      (collapsed && sum ? '<span class="sun-sum">' + sum + '</span>' : '') +
+      '<span class="sun-chev">' + ICON.chevDown + '</span></button>';
+    if (collapsed) return h + '</section>';
+    h += '<div id="sun-body" class="sun-body">';
     if (s.title) {
       var inner = '<span class="sun-title">' + esc(s.title) + '</span>' + (s.speaker ? '<span class="sun-speaker">' + esc(s.speaker) + '</span>' : '');
       h += s.url ? '<a class="sun-talk" href="' + esc(s.url) + '" target="_blank" rel="noopener"><span class="sun-tt">' + inner + '</span>' + ICON.link + '</a>' : '<div class="sun-talk"><span class="sun-tt">' + inner + '</span></div>';
@@ -255,7 +264,7 @@
       });
       h += '</ol>';
     }
-    return h + '</section>';
+    return h + '</div></section>';
   }
 
   // Star, to-do and ink filters show the matching lines themselves, newest first.
@@ -620,6 +629,13 @@
         var nn = { id: uid(), created: Date.now(), updated: Date.now(), star: false, tags: [], talk: null, lines: [newLine(ui.ink, false)] };
         data.notes.push(nn); ui.view = 'edit'; ui.editId = nn.id; ui.focus = { i: 0, caret: 0 }; ui.sheet = null;
         render(); window.scrollTo(0, 0); break;
+      }
+      case 'sun-toggle': {
+        var wasClosed = data.sundayCollapsed === sundayHash();
+        data.sundayCollapsed = wasClosed ? null : sundayHash();
+        ui.sundayNew = false; save(); render();
+        var hb = document.querySelector('.sun-head'); if (hb) hb.focus();
+        break;
       }
       case 'ponder': {
         // Start a private note with the question as its first line, linked to Sunday's talk.

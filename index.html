@@ -83,7 +83,13 @@ svg { display: block; flex-shrink: 0; }
 .search input { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; background: var(--surface); }
 
 .sunday { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-block: 2px 12px; display: flex; flex-direction: column; gap: 10px; }
-.sun-head { display: flex; align-items: center; gap: 8px; }
+.sun-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; margin: -6px 0; padding: 6px 0; border: none; background: transparent; text-align: left; color: var(--fg); }
+.sun-chev { color: var(--muted); display: flex; transform: rotate(180deg); }
+.sunday.closed .sun-chev { transform: none; }
+.sun-sum { font-size: 12px; font-weight: 600; color: var(--muted); }
+.sun-body { display: flex; flex-direction: column; gap: 10px; }
+.sunday.closed { padding-block: 12px; }
+@media (prefers-reduced-motion: no-preference) { .sun-chev { transition: transform 0.15s ease-out; } }
 .sun-label { flex: 1; font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
 .sun-new { font-size: 11px; font-weight: 700; color: var(--on-accent); background: var(--accent); border-radius: 6px; padding: 2px 7px; }
 .sun-talk { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--fg); background: var(--accent-soft); border-radius: 12px; padding: 10px 12px; }
@@ -487,8 +493,17 @@ a.sun-talk svg { color: var(--accent); }
   function renderSunday() {
     var s = sunday();
     if (!s) return '';
-    var h = '<section class="sunday" aria-labelledby="sun-label"><div class="sun-head"><span id="sun-label" class="sun-label">This Sunday in quorum' + (s.date ? ' · ' + esc(s.date) : '') + '</span>' +
-      (ui.sundayNew ? '<span class="sun-new">New</span>' : '') + '</div>';
+    // Starts open; stays closed only until the presidency posts something new.
+    var collapsed = data.sundayCollapsed === sundayHash();
+    var sum = s.questions.length ? s.questions.length + (s.questions.length === 1 ? ' question' : ' questions') : '';
+    var h = '<section class="sunday' + (collapsed ? ' closed' : '') + '" aria-labelledby="sun-label">' +
+      '<button class="sun-head" data-act="sun-toggle" aria-expanded="' + !collapsed + '" aria-controls="sun-body">' +
+      '<span id="sun-label" class="sun-label">This Sunday in quorum' + (s.date ? ' · ' + esc(s.date) : '') + '</span>' +
+      (ui.sundayNew ? '<span class="sun-new">New</span>' : '') +
+      (collapsed && sum ? '<span class="sun-sum">' + sum + '</span>' : '') +
+      '<span class="sun-chev">' + ICON.chevDown + '</span></button>';
+    if (collapsed) return h + '</section>';
+    h += '<div id="sun-body" class="sun-body">';
     if (s.title) {
       var inner = '<span class="sun-title">' + esc(s.title) + '</span>' + (s.speaker ? '<span class="sun-speaker">' + esc(s.speaker) + '</span>' : '');
       h += s.url ? '<a class="sun-talk" href="' + esc(s.url) + '" target="_blank" rel="noopener"><span class="sun-tt">' + inner + '</span>' + ICON.link + '</a>' : '<div class="sun-talk"><span class="sun-tt">' + inner + '</span></div>';
@@ -502,7 +517,7 @@ a.sun-talk svg { color: var(--accent); }
       });
       h += '</ol>';
     }
-    return h + '</section>';
+    return h + '</div></section>';
   }
 
   // Star, to-do and ink filters show the matching lines themselves, newest first.
@@ -867,6 +882,13 @@ a.sun-talk svg { color: var(--accent); }
         var nn = { id: uid(), created: Date.now(), updated: Date.now(), star: false, tags: [], talk: null, lines: [newLine(ui.ink, false)] };
         data.notes.push(nn); ui.view = 'edit'; ui.editId = nn.id; ui.focus = { i: 0, caret: 0 }; ui.sheet = null;
         render(); window.scrollTo(0, 0); break;
+      }
+      case 'sun-toggle': {
+        var wasClosed = data.sundayCollapsed === sundayHash();
+        data.sundayCollapsed = wasClosed ? null : sundayHash();
+        ui.sundayNew = false; save(); render();
+        var hb = document.querySelector('.sun-head'); if (hb) hb.focus();
+        break;
       }
       case 'ponder': {
         // Start a private note with the question as its first line, linked to Sunday's talk.
