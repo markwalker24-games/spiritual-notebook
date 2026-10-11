@@ -139,6 +139,9 @@ a.sun-talk svg { color: var(--accent); }
 .text-btn.strong { font-weight: 700; }
 .editor-page { background: var(--surface); }
 .ed-head { display: flex; flex-direction: column; gap: 10px; padding-block: 6px 4px; }
+.when-btn { align-self: flex-start; border: none; background: transparent; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 2px; color: var(--fg); border-radius: 6px; }
+.when-edit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.when-edit input { min-height: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; background: var(--bg); font-size: 16px; max-width: 100%; }
 .ed-date { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
 .ed-time { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .meta-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

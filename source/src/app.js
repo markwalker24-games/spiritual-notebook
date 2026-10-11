@@ -83,6 +83,10 @@
   function fmtTime(t) { return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
   function fmtDay(t) { return new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' }); }
   function fmtLong(t) { return new Date(t).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: new Date(t).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }); }
+  function toLocalInput(t) {
+    var d = new Date(t), p = function (x) { return (x < 10 ? '0' : '') + x; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
   function monthKey(t) { var d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1); }
   function monthName(t) { return new Date(t).toLocaleDateString([], { month: 'long', year: 'numeric' }); }
   function isStarred(n) { return n.star || n.lines.some(function (l) { return l.star && l.text.trim(); }); }
@@ -334,7 +338,14 @@
       '<button class="icon-btn bare" data-act="note-star" aria-pressed="' + !!n.star + '" aria-label="' + (n.star ? 'Unstar this note' : 'Star this whole note') + '" style="color: ' + (n.star ? 'var(--star-edge)' : 'var(--muted)') + '">' + ICON.star(n.star, 22) + '</button>' +
       '<button class="icon-btn bare" data-act="ask-delete" aria-label="Delete note" style="color: var(--muted)">' + ICON.trash + '</button>' +
       '<button class="text-btn strong" data-act="close">Done</button></div>';
-    h += '<div class="ed-head"><div><div class="ed-date">' + esc(fmtLong(n.created)) + '</div><div class="ed-time">' + esc(fmtTime(n.created)) + '</div></div><div class="meta-row">';
+    // The date looks like a plain heading; tapping it reveals a date-and-time picker.
+    var whenHtml = ui.editingDate
+      ? '<div class="when-edit"><label class="sr" for="note-when">Date and time of this note</label>' +
+        '<input id="note-when" type="datetime-local" value="' + toLocalInput(n.created) + '">' +
+        '<button class="text-btn strong" data-act="date-done">Done</button></div>'
+      : '<button class="when-btn" data-act="edit-date" aria-label="Change date, ' + esc(fmtLong(n.created) + ' ' + fmtTime(n.created)) + '">' +
+        '<span class="ed-date">' + esc(fmtLong(n.created)) + '</span><span class="ed-time">' + esc(fmtTime(n.created)) + '</span></button>';
+    h += '<div class="ed-head">' + whenHtml + '<div class="meta-row">';
     n.tags.forEach(function (t) { h += '<button class="tag removable" data-act="untag" data-tag="' + esc(t) + '" aria-label="Remove tag ' + esc(t) + '">#' + esc(t) + ICON.x + '</button>'; });
     h += '<button class="add-btn" data-act="sheet-tags">+ Tag</button>';
     if (n.talk) h += '<button class="talk-chip" style="min-height:32px; font-size:13px; padding:0 10px" data-act="sheet-talk">' + ICON.book + '<span>' + esc(n.talk.title) + '</span></button>';
@@ -559,6 +570,8 @@
   var sheetRoot = document.getElementById('sheet-root');
   function render() {
     document.body.classList.toggle('editor-page', ui.view === 'edit');
+    if (ui.view !== 'edit' || ui.editingDateFor !== ui.editId) { ui.editingDate = ui.view === 'edit' && ui.editingDateFor === ui.editId && ui.editingDate; }
+    ui.editingDateFor = ui.editId;
     app.innerHTML = ui.view === 'edit' ? renderEditor() : ui.view === 'settings' ? renderSettings() : renderHome();
     sheetRoot.innerHTML = renderSheet();
     if (ui.view === 'edit') {
@@ -630,6 +643,13 @@
         data.notes.push(nn); ui.view = 'edit'; ui.editId = nn.id; ui.focus = { i: 0, caret: 0 }; ui.sheet = null;
         render(); window.scrollTo(0, 0); break;
       }
+      case 'edit-date': {
+        ui.editingDate = true; ui.focus = null; render();
+        var wi = document.getElementById('note-when');
+        if (wi) { wi.focus(); try { if (wi.showPicker) wi.showPicker(); } catch (er) {} }
+        break;
+      }
+      case 'date-done': ui.editingDate = false; render(); break;
       case 'sun-toggle': {
         var wasClosed = data.sundayCollapsed === sundayHash();
         data.sundayCollapsed = wasClosed ? null : sundayHash();
@@ -786,6 +806,12 @@
   });
 
   document.addEventListener('change', function (e) {
+    if (e.target.id === 'note-when') {
+      var n = curNote(), v = e.target.value;
+      var t = v ? new Date(v).getTime() : NaN;
+      if (n && !isNaN(t)) { n.created = t; touch(n); save(); }
+      return;
+    }
     if (e.target.id === 'import-file' && e.target.files && e.target.files[0]) importBackup(e.target.files[0]);
   });
 
