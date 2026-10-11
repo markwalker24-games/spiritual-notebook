@@ -346,12 +346,37 @@
       '<button class="tool-btn' + (todoOn ? ' on' : '') + '" data-act="todo" aria-pressed="' + todoOn + '">' + ICON.todo + 'To-do</button>' +
       '<span class="hint">Pick an ink, then write. ☆ a line to share it.</span></div><div class="inks">' +
       INKS.map(function (k) {
-        return '<button class="ink' + (activeInk === k ? ' on' : '') + '" style="color: var(--ink-' + k + ')" data-act="ink" data-ink="' + k + '" aria-pressed="' + (activeInk === k) + '"><span class="dot" style="width:20px; height:20px; border-radius:10px"></span>' + INK_NAME[k] + '</button>';
+        return '<button class="ink' + (activeInk === k ? ' on' : '') + '" style="color: var(--ink-' + k + ')" data-act="ink" data-ink="' + k + '" aria-pressed="' + (activeInk === k) + '"><span class="dot" style="width:20px; height:20px; border-radius:10px"></span><span class="ink-name">' + INK_NAME[k] + '</span></button>';
       }).join('') + '</div></div></div>';
     return h;
   }
 
   function autosize(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+
+  // Keep the ink and to-do tools above the on-screen keyboard.
+  // Phones shrink the "visual viewport" when the keyboard opens; the gap below it is the keyboard.
+  var lastKb = 0;
+  function placeTools() {
+    var t = document.querySelector('[data-tools]');
+    var vv = window.visualViewport;
+    if (!t || !vv) return;
+    var kb = Math.max(0, Math.round(window.innerHeight - (vv.offsetTop + vv.height)));
+    var open = kb > 80;
+    t.style.transform = open ? 'translateY(' + (-kb) + 'px)' : '';
+    t.classList.toggle('kb', open);
+    if (open && kb !== lastKb) keepCaretVisible();
+    lastKb = kb;
+  }
+  function keepCaretVisible() {
+    var t = document.querySelector('[data-tools]'), a = document.activeElement;
+    if (!t || !a || !(a.matches && a.matches('.ln textarea'))) return;
+    var top = t.getBoundingClientRect().top, r = a.getBoundingClientRect();
+    if (r.bottom > top - 12) window.scrollBy(0, r.bottom - top + 24);
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', placeTools);
+    window.visualViewport.addEventListener('scroll', placeTools);
+  }
   function focusLine(i, caret) {
     var ta = document.getElementById('ln' + i);
     if (!ta) return;
@@ -529,6 +554,7 @@
     if (ui.view === 'edit') {
       app.querySelectorAll('.ln textarea').forEach(autosize);
       if (ui.focus) focusLine(ui.focus.i, ui.focus.caret);
+      placeTools();
       if (ui.highlight) {
         var hn = curNote(), hi = -1;
         hn.lines.forEach(function (l, i) { if (l.id === ui.highlight) hi = i; });
@@ -698,6 +724,7 @@
       }
       n.lines[i].text = t.value; ui.focus = { i: i, caret: null };
       autosize(t); touch(n);
+      if (lastKb > 80) keepCaretVisible();
     }
   });
 

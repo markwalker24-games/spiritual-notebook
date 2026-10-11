@@ -172,6 +172,16 @@ a.sun-talk svg { color: var(--accent); }
 .ink { min-height: 52px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 5px 0; font-size: 12px; font-weight: 600; }
 .ink.on { border: 2px solid currentColor; }
 
+/* While the keyboard is open: one compact row riding on top of it. */
+.tools.kb { padding: 6px 10px; }
+.tools.kb .tools-in { flex-direction: row; align-items: center; gap: 8px; }
+.tools.kb .hint { display: none; }
+.tools.kb .tool-btn { min-height: 40px; padding: 0 10px; }
+.tools.kb .inks { flex: 1; display: flex; justify-content: space-around; gap: 4px; }
+.tools.kb .ink { width: 44px; min-height: 40px; border-radius: 20px; padding: 0; }
+.tools.kb .ink-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: no-preference) { .tools { transition: transform 0.12s ease-out; } }
+
 /* ---------- Sheets ---------- */
 .scrim { position: fixed; inset: 0; z-index: 10; background: rgba(0, 0, 0, 0.35); display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: 100%; max-width: 560px; max-height: 86%; overflow-y: auto; background: var(--surface); border-radius: 20px 20px 0 0; padding: 8px 16px calc(24px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 12px; }
