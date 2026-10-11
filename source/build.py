@@ -7,7 +7,7 @@ SRC, PREV = os.path.join(ROOT, "src"), os.path.join(ROOT, "preview")
 DIST = os.path.dirname(ROOT)  # the site lives at the top of the repo
 css = open(os.path.join(SRC, "app.css")).read()
 js = open(os.path.join(SRC, "app.js")).read()
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 FONT = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">'
 BODY = '<div id="app"></div><div id="sheet-root"></div><div id="toast" class="toast" role="status" hidden></div>'
@@ -82,7 +82,7 @@ self.addEventListener('fetch', e => {{
 """
 
 talks = {
-    "thisWeek": {"title": "", "speaker": "", "date": "", "url": ""},
+    "thisWeek": {"date": "", "title": "", "speaker": "", "url": "", "note": "", "questions": []},
     "conference": {"name": "October 2026 General Conference", "talks": []},
 }
 

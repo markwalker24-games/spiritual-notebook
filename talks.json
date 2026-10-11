@@ -1,9 +1,11 @@
 {
   "thisWeek": {
+    "date": "",
     "title": "",
     "speaker": "",
-    "date": "",
-    "url": ""
+    "url": "",
+    "note": "",
+    "questions": []
   },
   "conference": {
     "name": "October 2026 General Conference",

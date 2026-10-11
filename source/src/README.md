@@ -25,17 +25,22 @@ Send the link. Each brother opens it on his phone and adds it to his Home Screen
 
 Adding it to the Home Screen matters on iPhone: Safari can clear data for sites that aren't used for a few weeks, but the Home Screen app keeps it.
 
-## Set this Sunday's talk
+## Post this Sunday's talk and questions
 
-Edit `talks.json` and upload the folder again:
+Each week, open `talks.json` on GitHub, click the pencil icon, edit, and click **Commit changes**. Within a few minutes it shows up as a "This Sunday in quorum" card at the top of everyone's notebook, marked **New** the first time they open the app after a change. Then post a quick "This week's questions are up" in WhatsApp.
 
 ```json
 {
   "thisWeek": {
+    "date": "Oct 18",
     "title": "Talk title",
     "speaker": "Speaker name",
-    "date": "Oct 18",
-    "url": "https://www.churchofjesuschrist.org/study/general-conference/..."
+    "url": "https://www.churchofjesuschrist.org/study/general-conference/...",
+    "note": "Optional short message, e.g. Read the talk before Sunday.",
+    "questions": [
+      "First question?",
+      "Second question?"
+    ]
   },
   "conference": {
     "name": "October 2026 General Conference",
@@ -46,7 +51,9 @@ Edit `talks.json` and upload the folder again:
 }
 ```
 
-The talk you put in `thisWeek` appears at the top of everyone's "Link a talk" list. Anyone can also type in a talk and link themselves.
+Every field is optional; leave one blank ("") to hide it, or blank them all to hide the card. Each question gets a **Write** button that starts a private note with the question at the top, linked to the talk. Keep the quotes and commas exactly as shown: if the file has a typo, the card won't appear (GitHub shows a red warning on `.json` files with errors).
+
+The talk you put in `thisWeek` also appears at the top of everyone's "Link a talk" list. Anyone can also type in a talk and link it themselves.
 
 ## Changing the app
 

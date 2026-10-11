@@ -55,7 +55,13 @@
   var talksConfig = { thisWeek: null, conference: null };
   try {
     fetch('talks.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) { if (j) { talksConfig = j; if (ui.sheet && ui.sheet.type === 'talk') render(); } })
+      .then(function (j) {
+        if (!j) return;
+        talksConfig = j;
+        var h = sundayHash();
+        if (h && data.seenSunday !== h) { ui.sundayNew = true; data.seenSunday = h; save(); }
+        if (ui.view === 'home' || (ui.sheet && ui.sheet.type === 'talk')) render();
+      })
       .catch(function () {});
   } catch (e) {}
 
@@ -155,6 +161,8 @@
       '<div class="top-actions"><button class="icon-btn" data-act="search" aria-label="Search notes" aria-pressed="' + ui.searching + '">' + ICON.search + '</button>' +
       '<button class="icon-btn" data-act="settings" aria-label="Settings and backup">' + ICON.gear + '</button></div></header>';
 
+    if (!ui.filter && !ui.query.trim()) h += renderSunday();
+
     if (ui.searching) h += '<div class="search"><label class="sr" for="q">Search notes</label><input id="q" type="search" placeholder="Search your notes" value="' + esc(ui.query) + '" autocomplete="off"></div>';
 
     h += '<div class="filters">' +
@@ -216,6 +224,37 @@
     }
     h += '<button class="fab" data-act="new">' + ICON.pen + 'New note</button>';
     return h;
+  }
+
+  // ---------- This Sunday (posted by the presidency in talks.json) ----------
+  function sunday() {
+    var tw = (talksConfig && talksConfig.thisWeek) || {};
+    var qs = Array.isArray(tw.questions) ? tw.questions.map(function (q) { return String(q || '').trim(); }).filter(Boolean) : [];
+    var title = String(tw.title || '').trim(), note = String(tw.note || '').trim();
+    if (!title && !qs.length && !note) return null;
+    return { title: title, speaker: String(tw.speaker || '').trim(), date: String(tw.date || '').trim(),
+      url: /^https:\/\//i.test(tw.url || '') ? tw.url : '', note: note, questions: qs };
+  }
+  function sundayHash() { var s = sunday(); return s ? JSON.stringify(s) : ''; }
+  function renderSunday() {
+    var s = sunday();
+    if (!s) return '';
+    var h = '<section class="sunday" aria-labelledby="sun-label"><div class="sun-head"><span id="sun-label" class="sun-label">This Sunday in quorum' + (s.date ? ' · ' + esc(s.date) : '') + '</span>' +
+      (ui.sundayNew ? '<span class="sun-new">New</span>' : '') + '</div>';
+    if (s.title) {
+      var inner = '<span class="sun-title">' + esc(s.title) + '</span>' + (s.speaker ? '<span class="sun-speaker">' + esc(s.speaker) + '</span>' : '');
+      h += s.url ? '<a class="sun-talk" href="' + esc(s.url) + '" target="_blank" rel="noopener"><span class="sun-tt">' + inner + '</span>' + ICON.link + '</a>' : '<div class="sun-talk"><span class="sun-tt">' + inner + '</span></div>';
+    }
+    if (s.note) h += '<p class="sun-note">' + esc(s.note) + '</p>';
+    if (s.questions.length) {
+      h += '<div class="sun-sub">Questions to ponder</div><ol class="sun-qs">';
+      s.questions.forEach(function (q, i) {
+        h += '<li><span class="sun-n" aria-hidden="true">' + (i + 1) + '</span><span class="sun-q">' + esc(q) + '</span>' +
+          '<button class="sun-write" data-act="ponder" data-q="' + i + '" aria-label="Write about question ' + (i + 1) + '">' + ICON.pen.replace('width="18" height="18"', 'width="15" height="15"') + 'Write</button></li>';
+      });
+      h += '</ol>';
+    }
+    return h + '</section>';
   }
 
   // Star, to-do and ink filters show the matching lines themselves, newest first.
@@ -553,6 +592,17 @@
       case 'new': {
         var nn = { id: uid(), created: Date.now(), updated: Date.now(), star: false, tags: [], talk: null, lines: [newLine(ui.ink, false)] };
         data.notes.push(nn); ui.view = 'edit'; ui.editId = nn.id; ui.focus = { i: 0, caret: 0 }; ui.sheet = null;
+        render(); window.scrollTo(0, 0); break;
+      }
+      case 'ponder': {
+        // Start a private note with the question as its first line, linked to Sunday's talk.
+        var s = sunday(), q = s && s.questions[+el.getAttribute('data-q')];
+        if (!q) break;
+        var first = newLine('blue', false); first.text = q;
+        var pn = { id: uid(), created: Date.now(), updated: Date.now(), star: false, tags: [], talk: null, lines: [first, newLine(ui.ink, false)] };
+        if (s.title) pn.talk = { title: s.title, speaker: s.speaker, url: s.url };
+        data.notes.push(pn); save();
+        ui.view = 'edit'; ui.editId = pn.id; ui.focus = { i: 1, caret: 0 }; ui.sheet = null; ui.sundayNew = false;
         render(); window.scrollTo(0, 0); break;
       }
       case 'close': closeEditor(); break;
