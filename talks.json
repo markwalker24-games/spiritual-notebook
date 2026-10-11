@@ -1,11 +1,14 @@
 {
   "thisWeek": {
-    "date": "",
-    "title": "",
+    "date": "Sunday, Oct 11",
+    "title": "October 2026 General Conference",
     "speaker": "",
-    "url": "",
-    "note": "",
-    "questions": []
+    "url": "https://www.churchofjesuschrist.org/study/general-conference",
+    "note": "Bring notes on your favorite parts of conference to share. Star the lines you want to share so you can find them fast in class.",
+    "questions": [
+      "What was your favorite part of general conference?",
+      "What did you write down or feel prompted to do while listening?"
+    ]
   },
   "conference": {
     "name": "October 2026 General Conference",
