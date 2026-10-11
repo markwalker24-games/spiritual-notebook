@@ -494,7 +494,10 @@
     h += '<section class="panel"><h2>Your notes are private</h2><p class="note-p">Notes are saved only on this phone. Nobody else can see them, including your quorum presidency. If you lose or replace your phone, you need a backup to get them back.</p>' +
       '<p class="note-p">Add this app to your Home Screen. On iPhone, notes in a browser tab can be cleared after a few weeks without use; the Home Screen app keeps them.</p>' +
       (storageOk ? '' : '<p class="note-p danger">This browser is not letting the app save. Leave private browsing mode or add the app to your Home Screen.</p>') + '</section>';
-    h += '<section class="panel"><h2>Backup</h2><p class="note-p">' + data.notes.length + ' notes. Save a backup file now and then, and keep it somewhere safe like your email or cloud drive.</p>' +
+    h += '<section class="panel"><h2>Download your notes</h2><p class="note-p">Save all your notes as a document you can keep forever. It opens on any phone or computer, keeps your ink colors, stars and checkboxes, and can be opened in Google Docs or Word.</p>' +
+      '<div class="row"><button class="primary" data-act="export-doc">Download notes</button></div>' +
+      '<p class="note-p">To put it in Google Docs: save it to Google Drive, open it there, and choose Open with › Google Docs.</p></section>';
+    h += '<section class="panel"><h2>Backup</h2><p class="note-p">' + data.notes.length + ' notes. A backup file lets you restore your notes into this app on a new phone. Save one now and then, and keep it somewhere safe like your email or cloud drive.</p>' +
       '<div class="row" style="flex-wrap:wrap"><button class="primary" data-act="export">Save backup</button><label class="secondary" for="import-file" style="display:flex; align-items:center; cursor:pointer">Restore from backup</label>' +
       '<input id="import-file" type="file" accept="application/json,.json" class="sr"></div></section>';
     h += '<section class="panel"><h2>Tags</h2>';
@@ -508,22 +511,24 @@
   }
 
   // ---------- Backup ----------
-  function exportBackup() {
-    var json = JSON.stringify(data, null, 2);
-    var name = 'spiritual-notebook-' + new Date().toISOString().slice(0, 10) + '.json';
-    var blob = new Blob([json], { type: 'application/json' });
-    // Inside the Claude preview, files go through the viewer's own save dialog.
-    if (window.claude && window.claude.use) {
+  function todayStamp() {
+    var d = new Date(), p = function (x) { return (x < 10 ? '0' : '') + x; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+  // Phones get the share sheet (Save to Files, Google Drive, email…); computers get a normal download.
+  function saveFile(name, content, mime, title, doneMsg) {
+    var blob = new Blob([content], { type: mime });
+    if (window.claude && window.claude.use) { // the preview inside Claude
       window.claude.use('downloads').then(function (dl) {
-        if (!dl) { toast('Backups work once the app is on its own website'); return; }
-        dl.save({ filename: name, data: json }).then(function () { toast('Backup saved'); }, function () {});
+        if (!dl) { toast('Downloads work once the app is on its own website'); return; }
+        dl.save({ filename: name, data: content }).then(function () { toast(doneMsg); }, function () {});
       });
       return;
     }
     try {
-      var file = new File([blob], name, { type: 'application/json' });
+      var file = new File([blob], name, { type: mime });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: 'Spiritual Notebook backup' }).catch(function () {});
+        navigator.share({ files: [file], title: title }).catch(function () {});
         return;
       }
     } catch (e) {}
@@ -531,7 +536,44 @@
     a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-    toast('Backup saved');
+    toast(doneMsg);
+  }
+  function exportBackup() {
+    saveFile('spiritual-notebook-backup-' + todayStamp() + '.json', JSON.stringify(data, null, 2), 'application/json', 'Spiritual Notebook backup', 'Backup saved');
+  }
+
+  // A readable copy of every note, oldest first, that opens in any browser, Word or Google Docs.
+  // Inline styles only, so the ink colors survive conversion to a Google Doc.
+  var DOC_INK = { black: '#1C1C1C', blue: '#1F5FBF', red: '#C0392B', green: '#2E7D4F' };
+  function notesDocument() {
+    var notes = data.notes.filter(function (n) { return !isBlank(n); }).sort(function (a, b) { return a.created - b.created; });
+    var out = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>Spiritual Notebook</title></head><body style="font-family: Georgia, \'Times New Roman\', serif; color: #1C1C1C; max-width: 680px; margin: 24px auto; padding: 0 16px; line-height: 1.55; font-size: 16px;">' +
+      '<h1 style="font-size: 28px; margin: 0 0 4px;">Spiritual Notebook</h1>' +
+      '<p style="color: #55605A; margin: 0 0 24px; font-size: 14px;">' + notes.length + (notes.length === 1 ? ' note' : ' notes') + ' · saved ' + esc(new Date().toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })) +
+      ' · ★ marks lines to share in quorum</p>';
+    var month = '';
+    notes.forEach(function (n) {
+      var m = monthName(n.created);
+      if (m !== month) { month = m; out += '<h2 style="font-size: 20px; margin: 32px 0 8px; border-bottom: 1px solid #DDE1DB; padding-bottom: 4px;">' + esc(m) + '</h2>'; }
+      out += '<h3 style="font-size: 16px; margin: 20px 0 4px;">' + (n.star ? '★ ' : '') + esc(fmtLong(n.created)) + ' <span style="font-weight: normal; color: #55605A;">· ' + esc(fmtTime(n.created)) + '</span></h3>';
+      var meta = [];
+      if (n.talk) meta.push('Talk: ' + (n.talk.url ? '<a href="' + esc(n.talk.url) + '" style="color: #1F4D3A;">' + esc(n.talk.title) + '</a>' : esc(n.talk.title)) + (n.talk.speaker ? ', ' + esc(n.talk.speaker) : ''));
+      if (n.tags.length) meta.push(n.tags.map(function (t) { return '#' + esc(t); }).join(' '));
+      if (meta.length) out += '<p style="margin: 0 0 6px; color: #55605A; font-size: 14px;">' + meta.join(' · ') + '</p>';
+      n.lines.forEach(function (l) {
+        if (!l.text.trim()) return;
+        var pre = (l.todo ? (l.done ? '☑ ' : '☐ ') : '') + (l.star ? '★ ' : '');
+        var style = 'margin: 0 0 4px; color: ' + (DOC_INK[l.ink] || DOC_INK.black) + ';' +
+          (l.star ? ' background: #FFF4D6;' : '') + (l.todo && l.done ? ' text-decoration: line-through;' : '');
+        out += '<p style="' + style + '">' + esc(pre + l.text) + '</p>';
+      });
+    });
+    if (!notes.length) out += '<p>No notes yet.</p>';
+    return out + '</body></html>';
+  }
+  function exportDocument() {
+    saveFile('Spiritual Notebook ' + todayStamp() + '.html', notesDocument(), 'text/html', 'Spiritual Notebook', 'Notes downloaded');
   }
   function importBackup(file) {
     var r = new FileReader();
@@ -720,6 +762,7 @@
         save(); ui.sheet = null; render(); break;
       }
       case 'export': exportBackup(); break;
+      case 'export-doc': exportDocument(); break;
     }
   });
 
@@ -819,7 +862,7 @@
   document.addEventListener('visibilitychange', function () { if (document.hidden) save(); });
 
   // Expose pure helpers for testing only.
-  window.__sn = { data: function () { return data; }, matches: matches, isStarred: isStarred, openTodos: openTodos, ui: ui };
+  window.__sn = { data: function () { return data; }, notesDocument: notesDocument, matches: matches, isStarred: isStarred, openTodos: openTodos, ui: ui };
 
   render();
 })();
