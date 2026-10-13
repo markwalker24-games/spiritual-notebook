@@ -355,3 +355,13 @@ body.has-nav .p-main { padding-bottom: 110px; }
 .pl-num { font-size: 10.5px; font-weight: 500; opacity: .8; font-variant-numeric: tabular-nums; }
 .street { text-anchor: middle; dominant-baseline: middle; font-size: 14px; font-weight: 700; fill: var(--muted); font-family: var(--font); letter-spacing: .02em; pointer-events: none; }
 button.text-link { width: 100%; border: none; text-align: left; font: inherit; color: var(--fg); cursor: pointer; }
+.sundays { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; }
+.sunday-chip { min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px; }
+.sunday-chip b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.sunday-chip small { font-size: 12px; color: var(--muted); }
+.sunday-chip.nextq { border-style: dashed; }
+.sunday-chip.away { background: var(--surface-2); border-color: transparent; }
+.sunday-chip.away b { text-decoration: line-through; color: var(--muted); }
+.sunday-chip.away small { color: var(--danger); font-weight: 700; }
+.away-note { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--danger); margin-left: 6px; }
+.warn-t { color: var(--star-text); }

@@ -375,6 +375,16 @@ body.has-nav .p-main { padding-bottom: 110px; }
 .pl-num { font-size: 10.5px; font-weight: 500; opacity: .8; font-variant-numeric: tabular-nums; }
 .street { text-anchor: middle; dominant-baseline: middle; font-size: 14px; font-weight: 700; fill: var(--muted); font-family: var(--font); letter-spacing: .02em; pointer-events: none; }
 button.text-link { width: 100%; border: none; text-align: left; font: inherit; color: var(--fg); cursor: pointer; }
+.sundays { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; }
+.sunday-chip { min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 4px; }
+.sunday-chip b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.sunday-chip small { font-size: 12px; color: var(--muted); }
+.sunday-chip.nextq { border-style: dashed; }
+.sunday-chip.away { background: var(--surface-2); border-color: transparent; }
+.sunday-chip.away b { text-decoration: line-through; color: var(--muted); }
+.sunday-chip.away small { color: var(--danger); font-weight: 700; }
+.away-note { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--danger); margin-left: 6px; }
+.warn-t { color: var(--star-text); }
 
 </style>
 </head>
@@ -424,7 +434,7 @@ window.EQP = function (api) {
   var S = {
     phase: 'loading',   // loading | signed-out | sent | not-presidency | ready | error
     email: '', me: null, tab: 'overview', district: 'all',
-    presidency: [], districts: [], brothers: [], families: [], comps: [], interviews: [], lots: [],
+    presidency: [], districts: [], brothers: [], families: [], comps: [], interviews: [], lots: [], away: [],
     settings: { agendaUrl: '', room: '', template: '' }
   };
   try { S.tab = localStorage.getItem(TAB_KEY) || 'overview'; } catch (e) {}
@@ -448,7 +458,8 @@ window.EQP = function (api) {
       c.from('companionship_members').select('*'),
       c.from('interviews').select('*').order('date'),
       c.from('lots').select('*'),
-      c.from('settings').select('*')
+      c.from('settings').select('*'),
+      c.from('unavailable').select('*')
     ]).then(function (res) {
       var pres = rows(res[0]);
       if (!pres.length) { S.phase = 'not-presidency'; return; }
@@ -467,6 +478,7 @@ window.EQP = function (api) {
       S.interviews = rows(res[6]).map(function (i) { return { id: i.id, compId: i.comp_id, date: i.date, by: i.by_id || '', status: i.status, names: i.names, texted: i.texted || {} }; });
       S.lots = rows(res[7]);
       rows(res[8]).forEach(function (s) { S.settings[s.key] = s.value; });
+      S.away = rows(res[9]).map(function (a) { return { who: a.presidency_id, date: a.date }; });
       var em = S.email.toLowerCase();
       S.me = (pres.filter(function (p) { return (p.email || '').toLowerCase() === em; })[0] || {}).id || null;
       S.phase = 'ready';
@@ -550,6 +562,28 @@ window.EQP = function (api) {
     return S.interviews.filter(function (i) { return i.status === 'missed' && comp(i.compId) && !upcomingFor(i.compId) && !attendedInQuarter(i.compId, 0); });
   }
 
+  // ---------- Interview rhythm ----------
+  // Each district leader interviews his own district's companionships, two per Sunday (settings.perSunday),
+  // skipping the Sundays he has marked as away.
+  function perSunday() { return +S.settings.perSunday || 2; }
+  function isAway(who, date) { return S.away.some(function (a) { return a.who === who && a.date === date; }); }
+  function leaderOf(c) { var d = c && find(S.districts, c.district); return d ? d.leader : null; }
+  function bookedOn(who, date, extra) {
+    return S.interviews.filter(function (i) { return i.by === who && i.date === date && i.status === 'scheduled'; }).length + ((extra && extra[date]) || 0);
+  }
+  // The first Sunday from `from` on where `who` is available and has room.
+  function nextOpen(who, from, extra) {
+    var d = parseIso(from || iso(nextSunday()));
+    for (var k = 0; k < 104; k++) {
+      var s = iso(addDays(d, 7 * k));
+      if (!isAway(who, s) && bookedOn(who, s, extra) < perSunday()) return s;
+    }
+    return null;
+  }
+  function needsScheduling() {
+    return activeComps().filter(function (c) { return c.families.length && !attendedInQuarter(c.id, 0) && !upcomingFor(c.id) && leaderOf(c); });
+  }
+
   // ---------- Changes (each one writes to the database) ----------
   function db() { return client(); }
   function seq(steps) { return steps.reduce(function (p, f) { return p.then(function () { return f().then(function (r) { if (r && r.error) throw r.error; }); }); }, Promise.resolve()); }
@@ -596,6 +630,35 @@ window.EQP = function (api) {
     var up = upcomingFor(cid);
     if (up) return save([db().from('interviews').update({ date: date, by_id: by || null, texted: {} }).eq('id', up.id)], 'Moved to ' + fmtSun(date));
     return save([db().from('interviews').insert({ comp_id: cid, date: date, by_id: by || null, status: 'scheduled' })], 'Scheduled for ' + fmtSun(date));
+  }
+  // Mark a Sunday away (or available again). Interviews already set for that day move to the next open Sundays.
+  function toggleAway(date) {
+    var who = S.me, c = client();
+    if (isAway(who, date)) return save([c.from('unavailable').delete().eq('presidency_id', who).eq('date', date)], fmtSun(date) + ' is available again');
+    S.away.push({ who: who, date: date });
+    var moving = S.interviews.filter(function (i) { return i.by === who && i.date === date && i.status === 'scheduled'; });
+    var extra = {}, ops = [c.from('unavailable').insert({ presidency_id: who, date: date })], to = [];
+    var start = iso(addDays(parseIso(date), 7));
+    moving.forEach(function (i) {
+      var s = nextOpen(who, start, extra);
+      if (!s) return;
+      extra[s] = (extra[s] || 0) + 1; to.push(fmtSun(s));
+      ops.push(c.from('interviews').update({ date: s, texted: {} }).eq('id', i.id));
+    });
+    return save(ops, moving.length ? 'Away ' + fmtSun(date) + '. Moved ' + moving.length + (moving.length === 1 ? ' interview to ' : ' interviews to ') + to.filter(function (x, k) { return to.indexOf(x) === k; }).join(' and ') : 'Marked away ' + fmtSun(date));
+  }
+  // Give every companionship that still needs an interview this quarter a slot with its district leader.
+  function fillSchedule() {
+    var c = client(), extra = {}, ops = [];
+    needsScheduling().forEach(function (cp) {
+      var who = leaderOf(cp), e = extra[who] = extra[who] || {};
+      var s = nextOpen(who, null, e);
+      if (!s) return;
+      e[s] = (e[s] || 0) + 1;
+      ops.push(c.from('interviews').insert({ comp_id: cp.id, date: s, by_id: who, status: 'scheduled' }));
+    });
+    if (!ops.length) { toast('Everyone already has an interview this quarter'); return; }
+    save(ops, 'Scheduled ' + ops.length + (ops.length === 1 ? ' interview' : ' interviews'));
   }
   function setStatus(id, st) {
     var i = iv(id); if (!i) return;
@@ -711,6 +774,9 @@ window.EQP = function (api) {
     list.forEach(function (i) { h += ivRow(i); });
     h += '<div class="row"><button class="secondary" data-act="p-schedule" data-date="' + sun + '">' + PI.plus + 'Schedule</button></div></section>';
 
+    var meP = pm(me);
+    if (meP && meP.interviews) h += renderMySundays();
+
     var chk = needsCheckoff();
     if (chk.length) {
       h += '<section class="pcard warn"><div class="pcard-head"><h2>Did they come?</h2><span class="count">' + chk.length + ' to check off</span></div>';
@@ -756,9 +822,30 @@ window.EQP = function (api) {
     return h;
   }
 
+  // The signed-in leader's upcoming Sundays: how many interviews each, and a switch to mark himself away.
+  function renderMySundays() {
+    var me = S.me, mine = S.interviews.filter(function (i) { return i.by === me && i.status === 'scheduled' && i.date >= iso(nextSunday()); });
+    var last = mine.reduce(function (m, i) { return i.date > m ? i.date : m; }, iso(addDays(quarterStart(1), -1)));
+    var weeks = Math.min(26, Math.max(6, Math.round((parseIso(last) - nextSunday()) / 6048e5) + 3));
+    var open = needsScheduling().filter(function (c) { return leaderOf(c) === me; }).length;
+    var h = '<section class="pcard"><div class="pcard-head"><h2>Your Sundays</h2><span class="count">' + mine.length + ' interviews ahead</span></div>' +
+      '<p class="note-p">' + perSunday() + ' companionships from your district each Sunday, right after church. Tap a Sunday you’ll be away and its interviews move to your next open Sundays.</p><div class="sundays">';
+    upcomingSundays(weeks).forEach(function (d) {
+      var away = isAway(me, d), n = bookedOn(me, d), qEnd = d >= iso(quarterStart(1));
+      h += '<button class="sunday-chip' + (away ? ' away' : '') + (qEnd ? ' nextq' : '') + '" data-act="p-away" data-date="' + d + '" aria-pressed="' + away + '" aria-label="' + esc(fmtSun(d)) + (away ? ', away. Tap if you can be there' : ', ' + n + ' interviews. Tap if you’ll be away') + '">' +
+        '<b>' + esc(fmtSun(d)) + '</b><small>' + (away ? 'Away' : n ? n + (n === 1 ? ' interview' : ' interviews') : 'Open') + '</small></button>';
+    });
+    h += '</div>';
+    if (mine.some(function (i) { return i.date >= iso(quarterStart(1)); })) h += '<p class="note-p warn-t">Some of your interviews now fall after ' + esc(quarterName(0)) + ' ends.</p>';
+    if (open) h += '<div class="row"><button class="secondary" data-act="p-fill">' + PI.plus + 'Schedule ' + open + ' more from your district</button></div>';
+    return h + '</section>';
+  }
+
   function renderInterviews() {
     var t = todayIso();
     var h = '<div class="row p-actions"><button class="primary" data-act="p-schedule">' + PI.plus + 'Schedule interview</button><button class="secondary" data-act="p-summary">Summary for LCR</button></div>';
+    var need = needsScheduling().length;
+    if (need) h += '<button class="att" data-act="p-fill"><span>' + need + (need === 1 ? ' companionship needs' : ' companionships need') + ' an interview this quarter. Schedule them with their district leaders</span>' + ICON.chev + '</button>';
     var chk = needsCheckoff();
     if (chk.length) {
       h += '<div class="sec">Did they come?</div>';
@@ -769,7 +856,8 @@ window.EQP = function (api) {
     if (!dates.length) h += '<div class="empty"><b>Nothing scheduled yet.</b><span>Tap Schedule interview to assign a companionship to a Sunday.</span></div>';
     dates.forEach(function (d) {
       var rs = up.filter(function (i) { return i.date === d; });
-      h += '<div class="sec">' + esc(sunLabel(d)) + ' · ' + rs.length + '</div>';
+      var aw = interviewers().filter(function (p) { return isAway(p.id, d); }).map(function (p) { return p.first; });
+      h += '<div class="sec">' + esc(sunLabel(d)) + ' · ' + rs.length + (aw.length ? ' <span class="away-note">' + esc(aw.join(' & ')) + ' away</span>' : '') + '</div>';
       rs.forEach(function (i) { h += ivRow(i); });
     });
     var from = iso(addDays(today0(), -42));
@@ -890,7 +978,7 @@ window.EQP = function (api) {
       var pre = s.compId || '';
       var defBy = s.compId && comp(s.compId) ? (find(S.districts, comp(s.compId).district) || {}).leader : S.me;
       h += bar('Schedule an interview', 'Cancel') + '<form class="field" data-form="p-schedule">' +
-        '<label for="p-date">Sunday</label><select id="p-date" class="p-select">' + sundayOptions(s.date || iso(nextSunday())) + '</select>' +
+        '<label for="p-date">Sunday</label><select id="p-date" class="p-select">' + sundayOptions(s.date || (defBy && nextOpen(defBy)) || iso(nextSunday())) + '</select>' +
         '<label for="p-byw">Interviewed by</label><select id="p-byw" class="p-select">' + interviewerOptions(defBy) + '</select>' +
         '<fieldset class="pick"><legend>Companionship' + (S.district !== 'all' ? ' · District ' + esc(S.district) : '') + '</legend>';
       comps.forEach(function (c) {
@@ -1021,6 +1109,8 @@ window.EQP = function (api) {
         return true;
       }
       case 'p-status': setStatus(id, el.getAttribute('data-st')); return true;
+      case 'p-away': toggleAway(el.getAttribute('data-date')); return true;
+      case 'p-fill': fillSchedule(); return true;
       case 'p-text': ui.pText = ui.pText === id ? null : id; api.render(); return true;
       case 'p-texted': {
         var it = iv(id); if (!it) return true;
@@ -1131,7 +1221,7 @@ window.EQP = function (api) {
   start();
   return {
     render: render, renderSheet: renderSheet, onClick: onClick, onSubmit: onSubmit, onChange: onChange, onInput: onInput, onKey: onKey,
-    _state: function () { return S; }, _summary: summaryText, _reminder: reminderText
+    _state: function () { return S; }, _nextOpen: nextOpen, _toggleAway: toggleAway, _summary: summaryText, _reminder: reminderText
   };
 };
 
