@@ -311,7 +311,7 @@ window.EQP = function (api) {
     if (S.phase === 'not-presidency') return head(esc(S.email)) + '<main class="p-main"><section class="panel"><h2>Not on the presidency list</h2><p class="note-p">' + esc(S.email) + ' isn’t one of the presidency’s sign-in emails. If it should be, ask Brother Walker to add it.</p><div class="row"><button class="secondary" data-act="p-signout">Sign out</button></div></section></main>';
     var me = pm(S.me);
     var agenda = S.settings.agendaUrl
-      ? '<a class="icon-btn" href="' + esc(S.settings.agendaUrl) + '" target="_blank" rel="noopener" aria-label="Open the presidency meeting agenda">' + PI.doc + '</a>'
+      ? '<a class="icon-btn" href="' + esc(S.settings.agendaUrl) + '" target="_blank" rel="noopener" aria-label="Open the presidency meeting notes">' + PI.doc + '</a>'
       : '<button class="icon-btn" data-act="p-settings" aria-label="Add the presidency meeting agenda link">' + PI.doc + '</button>';
     var h = head(esc(me ? pmName(me) + ' · ' + me.role : S.email), agenda + '<button class="icon-btn" data-act="p-settings" aria-label="Presidency settings">' + ICON.gear + '</button>');
     var tabs = [['overview', 'Overview'], ['interviews', 'Interviews'], ['ministering', 'Ministering'], ['map', 'Map']];
@@ -386,7 +386,11 @@ window.EQP = function (api) {
     var isSec = meP && /ministering secretary/i.test(meP.role);
     var list = S.interviews.filter(function (i) { return i.date === sun && i.status === 'scheduled'; });
     var mine = list.filter(function (i) { return i.by === me; }).length;
-    var h = isSec ? renderReminders(true) : '';
+    var h = '<section class="pcard"><div class="pcard-head"><h2>Presidency meeting</h2></div>' +
+      (S.settings.agendaUrl
+        ? '<a class="att" href="' + esc(S.settings.agendaUrl) + '" target="_blank" rel="noopener"><span>Open the meeting notes in Google Docs</span>' + ICON.link + '</a>'
+        : '<button class="att" data-act="p-settings"><span>Add the link to your meeting notes in Google Docs</span>' + ICON.chev + '</button>') + '</section>';
+    h += isSec ? renderReminders(true) : '';
     h += '<section class="pcard"><div class="pcard-head"><h2>' + esc(sunLabel(sun)) + '</h2><span class="count">' + list.length + (list.length === 1 ? ' interview' : ' interviews') + (mine ? ' · ' + mine + ' with you' : '') + '</span></div>';
     if (!list.length) h += '<p class="note-p">No interviews scheduled yet.</p>';
     list.forEach(function (i) { h += ivRow(i); });
@@ -433,10 +437,6 @@ window.EQP = function (api) {
       att.forEach(function (a) { h += '<button class="att" data-act="p-tab" data-tab="' + a.tab + '"' + (a.f ? ' data-mapf="' + a.f + '"' : '') + '><span>' + esc(a.txt) + '</span>' + ICON.chev + '</button>'; });
       h += '</section>';
     }
-    h += '<section class="pcard"><div class="pcard-head"><h2>Presidency meeting</h2></div>' +
-      (S.settings.agendaUrl
-        ? '<a class="att" href="' + esc(S.settings.agendaUrl) + '" target="_blank" rel="noopener"><span>Open the agenda in Google Docs</span>' + ICON.link + '</a>'
-        : '<button class="att" data-act="p-settings"><span>Add the link to your agenda Google Doc</span>' + ICON.chev + '</button>') + '</section>';
     return h;
   }
 
@@ -720,7 +720,7 @@ window.EQP = function (api) {
     } else if (s.type === 'p-settings') {
       var me = pm(S.me);
       h += bar('Presidency settings', 'Cancel') + '<form class="field" data-form="p-settings">' +
-        '<label for="p-agenda">Presidency agenda (Google Doc link)</label><input id="p-agenda" type="url" inputmode="url" placeholder="https://docs.google.com/document/…" value="' + esc(S.settings.agendaUrl || '') + '">' +
+        '<label for="p-agenda">Presidency meeting notes (Google Doc link)</label><input id="p-agenda" type="url" inputmode="url" placeholder="https://docs.google.com/document/…" value="' + esc(S.settings.agendaUrl || '') + '">' +
         '<label for="p-room">Where interviews happen</label><input id="p-room" type="text" value="' + esc(S.settings.room || '') + '">' +
         '<label for="p-tpl">Reminder text</label><textarea id="p-tpl" class="p-tpl" rows="5">' + esc(S.settings.template || '') + '</textarea>' +
         '<p class="note-p">Words in braces fill in for each brother: {last}, {first}, {interviewer}, {when}, {room}, {sender}.</p>' +
