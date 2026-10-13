@@ -163,9 +163,25 @@ window.EQP = function (api) {
     if (up) return { kind: 'sched', text: 'Scheduled ' + fmtSun(up.date) };
     return { kind: 'need', text: 'Needs an interview this quarter' };
   }
-  function needsCheckoff() { var t = todayIso(); return S.interviews.filter(function (i) { return i.status === 'scheduled' && i.date < t; }).sort(byDate); }
+  function needsCheckoff() { var t = todayIso(); return S.interviews.filter(function (i) { return i.status === 'scheduled' && i.date < t && shown(i); }).sort(byDate); }
   function missedOpen() {
     return S.interviews.filter(function (i) { return i.status === 'missed' && comp(i.compId) && !upcomingFor(i.compId) && !attendedInQuarter(i.compId, 0); });
+  }
+
+  // ---------- Whose interviews to show ----------
+  // Interviewers (president and counselors) see only their own by default; everyone else sees all.
+  var SCOPE_KEY = 'eq-presidency-scope';
+  function canFilter() { var m = pm(S.me); return !!(m && m.interviews); }
+  function scope() {
+    if (!canFilter()) return 'all';
+    try { return localStorage.getItem(SCOPE_KEY) === 'all' ? 'all' : 'mine'; } catch (e) { return S.scopeMem || 'mine'; }
+  }
+  function setScope(v) { S.scopeMem = v; try { localStorage.setItem(SCOPE_KEY, v); } catch (e) {} }
+  function shown(i) { return scope() === 'all' || i.by === S.me; }
+  function scopeToggle() {
+    if (!canFilter()) return '';
+    var all = scope() === 'all';
+    return '<button class="scope-btn" data-act="p-scope" aria-pressed="' + all + '">' + (all ? 'See my own' : 'See all') + '</button>';
   }
 
   // ---------- Interview rhythm ----------
@@ -384,15 +400,14 @@ window.EQP = function (api) {
   function renderOverview() {
     var sun = iso(nextSunday()), me = S.me, meP = pm(me);
     var isSec = meP && /ministering secretary/i.test(meP.role);
-    var list = S.interviews.filter(function (i) { return i.date === sun && i.status === 'scheduled'; });
-    var mine = list.filter(function (i) { return i.by === me; }).length;
+    var list = S.interviews.filter(function (i) { return i.date === sun && i.status === 'scheduled' && shown(i); });
     var h = '<section class="pcard"><div class="pcard-head"><h2>Presidency meeting</h2></div>' +
       (S.settings.agendaUrl
         ? '<a class="att" href="' + esc(S.settings.agendaUrl) + '" target="_blank" rel="noopener"><span>Open the meeting notes in Google Docs</span>' + ICON.link + '</a>'
         : '<button class="att" data-act="p-settings"><span>Add the link to your meeting notes in Google Docs</span>' + ICON.chev + '</button>') + '</section>';
     h += isSec ? renderReminders(true) : '';
-    h += '<section class="pcard"><div class="pcard-head"><h2>' + esc(sunLabel(sun)) + '</h2><span class="count">' + list.length + (list.length === 1 ? ' interview' : ' interviews') + (mine ? ' · ' + mine + ' with you' : '') + '</span></div>';
-    if (!list.length) h += '<p class="note-p">No interviews scheduled yet.</p>';
+    h += '<section class="pcard"><div class="pcard-head"><h2>' + esc(sunLabel(sun)) + '</h2><span class="count">' + list.length + (list.length === 1 ? ' interview' : ' interviews') + (scope() === 'mine' ? ' with you' : '') + '</span>' + scopeToggle() + '</div>';
+    if (!list.length) h += '<p class="note-p">' + (scope() === 'mine' ? 'No interviews with you this Sunday.' : 'No interviews scheduled yet.') + '</p>';
     list.forEach(function (i) { h += ivRow(i); });
     h += '<div class="row"><button class="secondary" data-act="p-schedule" data-date="' + sun + '">' + PI.plus + 'Schedule</button></div></section>';
 
@@ -487,6 +502,7 @@ window.EQP = function (api) {
   function renderInterviews() {
     var t = todayIso();
     var h = '<div class="row p-actions"><button class="primary" data-act="p-schedule">' + PI.plus + 'Schedule interview</button><button class="secondary" data-act="p-summary">Summary for LCR</button></div>';
+    if (canFilter()) h += '<div class="scope-row"><span>' + (scope() === 'all' ? 'Showing everyone’s interviews' : 'Showing your interviews') + '</span>' + scopeToggle() + '</div>';
     var need = needsScheduling().length;
     if (need) h += '<button class="att" data-act="p-fill"><span>' + need + (need === 1 ? ' companionship needs' : ' companionships need') + ' an interview this quarter. Schedule them with their district leaders</span>' + ICON.chev + '</button>';
     var chk = needsCheckoff();
@@ -494,7 +510,7 @@ window.EQP = function (api) {
       h += '<div class="sec">Did they come?</div>';
       chk.forEach(function (i) { h += '<div class="past-date">' + fmtSun(i.date) + '</div>' + ivRow(i); });
     }
-    var up = S.interviews.filter(function (i) { return i.status === 'scheduled' && i.date >= t; }).sort(byDate);
+    var up = S.interviews.filter(function (i) { return i.status === 'scheduled' && i.date >= t && shown(i); }).sort(byDate);
     var dates = []; up.forEach(function (i) { if (dates.indexOf(i.date) < 0) dates.push(i.date); });
     if (!dates.length) h += '<div class="empty"><b>Nothing scheduled yet.</b><span>Tap Schedule interview to assign a companionship to a Sunday.</span></div>';
     dates.forEach(function (d) {
@@ -504,7 +520,7 @@ window.EQP = function (api) {
       rs.forEach(function (i) { h += ivRow(i); });
     });
     var from = iso(addDays(today0(), -42));
-    var past = S.interviews.filter(function (i) { return i.status !== 'scheduled' && i.date >= from; }).sort(byDate).reverse();
+    var past = S.interviews.filter(function (i) { return i.status !== 'scheduled' && i.date >= from && shown(i); }).sort(byDate).reverse();
     if (past.length) {
       h += '<div class="sec">Last 6 weeks</div>';
       past.forEach(function (i) { h += ivRow(i, 'recent'); });
@@ -777,6 +793,7 @@ window.EQP = function (api) {
       case 'p-away-set': { var ad = ui.sheet.date; ui.sheet = null; setAway(ad, el.getAttribute('data-move') === '1'); return true; }
       case 'p-away-clear': { var cd = ui.sheet.date; ui.sheet = null; setBack(cd, el.getAttribute('data-restore') === '1'); return true; }
       case 'p-fill': fillSchedule(); return true;
+      case 'p-scope': setScope(scope() === 'all' ? 'mine' : 'all'); api.render(); return true;
       case 'p-rem-open': S.remOpen = true; api.render(); return true;
       case 'p-text': ui.pText = ui.pText === id ? null : id; api.render(); return true;
       case 'p-texted': {

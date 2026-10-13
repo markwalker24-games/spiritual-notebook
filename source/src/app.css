@@ -375,3 +375,7 @@ button.text-link { width: 100%; border: none; text-align: left; font: inherit; c
 :root[data-theme="dark"] { --lot-yes: #34503F; --lot-no: #6E5330; --lot-yes-ink: #A9D6B9; --lot-no-ink: #F0C98F; }
 .b-yes { background: var(--lot-yes); color: var(--lot-yes-ink); }
 .b-no { background: var(--lot-no); color: var(--lot-no-ink); }
+.scope-btn { min-height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); font-size: 12px; font-weight: 700; color: var(--accent); margin-left: auto; }
+.scope-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: transparent; }
+.scope-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.pcard-head .count + .scope-btn { margin-left: auto; }
