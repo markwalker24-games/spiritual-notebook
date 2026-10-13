@@ -701,7 +701,7 @@ window.EQP = function (api) {
       .replace(/\{you\}/g, others.length ? 'you and ' + others.join(' and ') : 'you')
       .replace(/\{interviewer\}/g, pmFormal(pm(i.by)))
       .replace(/\{when\}/g, when).replace(/\{room\}/g, S.settings.room || 'the church')
-      .replace(/\{sender\}/g, me ? me.first : 'Elders Quorum presidency');
+      .replace(/\{sender\}/g, me ? pmName(me) : 'Elders Quorum presidency');
   }
 
   // ---------- Screens ----------
