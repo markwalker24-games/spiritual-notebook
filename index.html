@@ -385,6 +385,7 @@ button.text-link { width: 100%; border: none; text-align: left; font: inherit; c
 .sunday-chip.away small { color: var(--danger); font-weight: 700; }
 .away-note { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--danger); margin-left: 6px; }
 .warn-t { color: var(--star-text); }
+.rem-group { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding-top: 6px; }
 
 </style>
 </head>
@@ -766,16 +767,18 @@ window.EQP = function (api) {
   }
 
   function renderOverview() {
-    var sun = iso(nextSunday()), me = S.me;
+    var sun = iso(nextSunday()), me = S.me, meP = pm(me);
+    var isSec = meP && /ministering secretary/i.test(meP.role);
     var list = S.interviews.filter(function (i) { return i.date === sun && i.status === 'scheduled'; });
     var mine = list.filter(function (i) { return i.by === me; }).length;
-    var h = '<section class="pcard"><div class="pcard-head"><h2>' + esc(sunLabel(sun)) + '</h2><span class="count">' + list.length + (list.length === 1 ? ' interview' : ' interviews') + (mine ? ' · ' + mine + ' with you' : '') + '</span></div>';
+    var h = isSec ? renderReminders(true) : '';
+    h += '<section class="pcard"><div class="pcard-head"><h2>' + esc(sunLabel(sun)) + '</h2><span class="count">' + list.length + (list.length === 1 ? ' interview' : ' interviews') + (mine ? ' · ' + mine + ' with you' : '') + '</span></div>';
     if (!list.length) h += '<p class="note-p">No interviews scheduled yet.</p>';
     list.forEach(function (i) { h += ivRow(i); });
     h += '<div class="row"><button class="secondary" data-act="p-schedule" data-date="' + sun + '">' + PI.plus + 'Schedule</button></div></section>';
 
-    var meP = pm(me);
     if (meP && meP.interviews) h += renderMySundays();
+    if (!isSec) h += renderReminders(!!S.remOpen);
 
     var chk = needsCheckoff();
     if (chk.length) {
@@ -820,6 +823,31 @@ window.EQP = function (api) {
         ? '<a class="att" href="' + esc(S.settings.agendaUrl) + '" target="_blank" rel="noopener"><span>Open the agenda in Google Docs</span>' + ICON.link + '</a>'
         : '<button class="att" data-act="p-settings"><span>Add the link to your agenda Google Doc</span>' + ICON.chev + '</button>') + '</section>';
     return h;
+  }
+
+  // Everyone to text about the coming Sunday's interviews, in one list (the ministering secretary's job).
+  function renderReminders(open) {
+    var sun = iso(nextSunday());
+    var list = S.interviews.filter(function (i) { return i.date === sun && i.status === 'scheduled'; });
+    if (!list.length) return '';
+    var people = [], sent = 0;
+    list.forEach(function (i) { var c = comp(i.compId); if (c) c.members.forEach(function (b) { people.push({ i: i, b: bro(b) }); if (i.texted && i.texted[b]) sent++; }); });
+    var h = '<section class="pcard"><div class="pcard-head"><h2>Reminders for ' + esc(sun === todayIso() ? 'today' : fmtSun(sun)) + '</h2><span class="count">' + sent + ' of ' + people.length + ' sent</span></div>';
+    if (!open) return h + '<button class="att" data-act="p-rem-open"><span>Text ' + (people.length - sent) + ' ministers about this Sunday’s interviews</span>' + ICON.chev + '</button></section>';
+    h += '<p class="note-p">Each one opens Messages with the reminder written out. Check it, then tap send.</p><div class="texts" style="border:none;padding:0">';
+    list.forEach(function (i) {
+      var c = comp(i.compId), by = pm(i.by);
+      if (!c) return;
+      h += '<div class="rem-group">with ' + esc(by ? pmName(by) : 'the presidency') + '</div>';
+      c.members.forEach(function (bid) {
+        var b = bro(bid), done = i.texted && i.texted[bid];
+        if (!b) return;
+        if (!b.phone) { h += '<button class="text-link done" data-act="p-phone" data-b="' + bid + '"><span><b>' + esc(b.first + ' ' + b.last) + '</b><small>No phone number yet</small></span><em>' + PI.plus + 'Add number</em></button>'; return; }
+        h += '<a class="text-link' + (done ? ' done' : '') + '" href="' + esc(smsHref(b.phone, reminderText(i, b))) + '" data-act="p-texted" data-id="' + i.id + '" data-b="' + bid + '">' +
+          '<span><b>' + esc(b.first + ' ' + b.last) + '</b><small>' + esc(b.phone) + '</small></span>' + (done ? '<em>' + PI.ok + 'Sent</em>' : '<em>' + PI.msg + 'Text</em>') + '</a>';
+      });
+    });
+    return h + '</div></section>';
   }
 
   // The signed-in leader's upcoming Sundays: how many interviews each, and a switch to mark himself away.
@@ -1059,7 +1087,7 @@ window.EQP = function (api) {
         '<label for="p-agenda">Presidency agenda (Google Doc link)</label><input id="p-agenda" type="url" inputmode="url" placeholder="https://docs.google.com/document/…" value="' + esc(S.settings.agendaUrl || '') + '">' +
         '<label for="p-room">Where interviews happen</label><input id="p-room" type="text" value="' + esc(S.settings.room || '') + '">' +
         '<label for="p-tpl">Reminder text</label><textarea id="p-tpl" class="p-tpl" rows="5">' + esc(S.settings.template || '') + '</textarea>' +
-        '<p class="note-p">Words in braces fill in for each brother: {last}, {first}, {you} (“you and Brother Allen”), {interviewer}, {when}, {room}, {sender}.</p>' +
+        '<p class="note-p">Words in braces fill in for each brother: {last}, {first}, {interviewer}, {when}, {room}, {sender}.</p>' +
         (me ? '<label for="p-mylast">Your last name (used in texts)</label><input id="p-mylast" type="text" value="' + esc(me.last) + '">' : '') +
         '<button class="primary" type="submit">Save</button></form>' +
         '<div class="sec">Presidency</div>' + S.presidency.map(function (p) { return '<div class="trow"><span>' + esc(pmName(p)) + '<small class="phone">' + esc(p.role) + (p.email ? '' : ' · can’t sign in yet') + '</small></span></div>'; }).join('') +
@@ -1111,6 +1139,7 @@ window.EQP = function (api) {
       case 'p-status': setStatus(id, el.getAttribute('data-st')); return true;
       case 'p-away': toggleAway(el.getAttribute('data-date')); return true;
       case 'p-fill': fillSchedule(); return true;
+      case 'p-rem-open': S.remOpen = true; api.render(); return true;
       case 'p-text': ui.pText = ui.pText === id ? null : id; api.render(); return true;
       case 'p-texted': {
         var it = iv(id); if (!it) return true;

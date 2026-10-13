@@ -365,3 +365,4 @@ button.text-link { width: 100%; border: none; text-align: left; font: inherit; c
 .sunday-chip.away small { color: var(--danger); font-weight: 700; }
 .away-note { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--danger); margin-left: 6px; }
 .warn-t { color: var(--star-text); }
+.rem-group { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding-top: 6px; }
