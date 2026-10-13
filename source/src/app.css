@@ -379,3 +379,13 @@ button.text-link { width: 100%; border: none; text-align: left; font: inherit; c
 .scope-btn[aria-pressed="true"] { background: var(--accent-soft); border-color: transparent; }
 .scope-row { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
 .pcard-head .count + .scope-btn { margin-left: auto; }
+.att-list { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.att-row { display: flex; align-items: center; gap: 6px; }
+.att-row span { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+.att-btn { min-height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+.att-btn.yes { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.att-btn.no { background: var(--surface-2); border-color: var(--danger); color: var(--danger); }
+.att-sum { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; }
+.att-sum span { display: inline-flex; align-items: center; gap: 4px; }
+.att-sum .yes { color: var(--accent); }
+.att-sum .no { color: var(--danger); }

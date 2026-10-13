@@ -81,7 +81,7 @@ window.EQP = function (api) {
           families: S.families.filter(function (f) { return f.comp === c.id; }).map(function (f) { return f.id; })
         };
       });
-      S.interviews = rows(res[6]).map(function (i) { return { id: i.id, compId: i.comp_id, date: i.date, by: i.by_id || '', status: i.status, names: i.names, texted: i.texted || {}, movedFrom: i.moved_from || null }; });
+      S.interviews = rows(res[6]).map(function (i) { return { id: i.id, compId: i.comp_id, date: i.date, by: i.by_id || '', status: i.status, names: i.names, texted: i.texted || {}, movedFrom: i.moved_from || null, attendance: i.attendance || {} }; });
       S.lots = rows(res[7]);
       rows(res[8]).forEach(function (s) { S.settings[s.key] = s.value; });
       S.away = rows(res[9]).map(function (a) { return { who: a.presidency_id, date: a.date }; });
@@ -294,9 +294,23 @@ window.EQP = function (api) {
   }
   function setStatus(id, st) {
     var i = iv(id); if (!i) return;
-    var names = st === 'scheduled' ? null : compLabel(comp(i.compId));
-    i.status = st;
-    return save([db().from('interviews').update({ status: st, names: names }).eq('id', id)]);
+    var c = comp(i.compId), names = st === 'scheduled' ? null : compLabel(c);
+    var att = {};
+    if (st !== 'scheduled' && c) c.members.forEach(function (b) { att[b] = { name: fullName(bro(b)), came: st === 'attended' }; });
+    i.status = st; i.attendance = att;
+    return save([db().from('interviews').update({ status: st, names: names, attendance: att }).eq('id', id)]);
+  }
+  // Mark one companion as came / didn't come. Once everyone is marked, the interview is checked off:
+  // attended if anyone came, otherwise didn't attend.
+  function markPerson(id, bid, came) {
+    var i = iv(id), c = i && comp(i.compId); if (!i || !c) return;
+    var att = Object.assign({}, i.attendance || {});
+    if (att[bid] && att[bid].came === came) delete att[bid]; else att[bid] = { name: fullName(bro(bid)), came: came };
+    var all = c.members.every(function (b) { return att[b]; });
+    var upd = { attendance: att };
+    if (all) { upd.status = c.members.some(function (b) { return att[b].came; }) ? 'attended' : 'missed'; upd.names = compLabel(c); }
+    i.attendance = att; if (all) i.status = upd.status;
+    return save([db().from('interviews').update(upd).eq('id', id)], all ? (upd.status === 'attended' ? 'Checked off' : 'Marked as not attended') : null);
   }
 
   // ---------- Texts ----------
@@ -372,9 +386,8 @@ window.EQP = function (api) {
     else h += '<span class="who plain">' + fmtSun(i.date) + (by ? ' · with ' + esc(pmName(by)) : '') + '</span>';
     h += '<span class="spacer"></span>';
     var t = todayIso();
-    if (i.status === 'scheduled' && i.date <= t) {
-      h += '<button class="mini ok" data-act="p-status" data-id="' + i.id + '" data-st="attended">' + PI.ok + 'Attended</button>' +
-        '<button class="mini" data-act="p-status" data-id="' + i.id + '" data-st="missed">' + PI.no + 'Didn’t</button>';
+    if (i.status === 'scheduled' && i.date <= t && c) {
+      h += '<button class="mini ok" data-act="p-status" data-id="' + i.id + '" data-st="attended">' + PI.ok + 'All came</button>';
     }
     if (i.status === 'scheduled' && i.date >= t) {
       var sent = c ? c.members.filter(function (b) { return i.texted && i.texted[b]; }).length : 0;
@@ -383,6 +396,19 @@ window.EQP = function (api) {
     }
     if (i.status === 'missed' && mode !== 'recent' && c && !upcomingFor(c.id)) h += '<button class="mini" data-act="p-resched" data-id="' + i.id + '">' + PI.cal + 'Reschedule</button>';
     h += '</div>';
+    if (i.status === 'scheduled' && i.date <= t && c) {
+      h += '<div class="att-list" role="group" aria-label="Who came">';
+      c.members.forEach(function (bid) {
+        var a = (i.attendance || {})[bid], b = bro(bid);
+        h += '<div class="att-row"><span>' + esc(fullName(b)) + '</span>' +
+          '<button class="att-btn' + (a && a.came ? ' yes' : '') + '" data-act="p-came" data-id="' + i.id + '" data-b="' + bid + '" data-came="1" aria-pressed="' + !!(a && a.came) + '">' + PI.ok + 'Came</button>' +
+          '<button class="att-btn' + (a && !a.came ? ' no' : '') + '" data-act="p-came" data-id="' + i.id + '" data-b="' + bid + '" data-came="0" aria-pressed="' + !!(a && !a.came) + '">' + PI.no + 'Didn’t</button></div>';
+      });
+      h += '</div>';
+    }
+    if (i.status !== 'scheduled' && i.attendance && Object.keys(i.attendance).length) {
+      h += '<div class="att-sum">' + Object.keys(i.attendance).map(function (k) { var a = i.attendance[k]; return '<span class="' + (a.came ? 'yes' : 'no') + '">' + (a.came ? PI.ok : PI.no) + esc(a.name) + '</span>'; }).join('') + '</div>';
+    }
     if (ui.pText === i.id && c) {
       h += '<div class="texts">';
       c.members.forEach(function (bid) {
@@ -751,16 +777,23 @@ window.EQP = function (api) {
   function summaryText(off) {
     var a = iso(quarterStart(off)), b = iso(quarterStart(off + 1));
     var inQ = S.interviews.filter(function (i) { return i.date >= a && i.date < b && i.status !== 'scheduled'; }).sort(byDate);
+    function people(i) {
+      var at = i.attendance || {}, ks = Object.keys(at);
+      if (!ks.length) return { came: i.status === 'attended' ? [ivLabel(i)] : [], missed: i.status === 'missed' ? [ivLabel(i)] : [] };
+      return { came: ks.filter(function (k) { return at[k].came; }).map(function (k) { return at[k].name; }), missed: ks.filter(function (k) { return !at[k].came; }).map(function (k) { return at[k].name; }) };
+    }
     var lines = ['Ministering interviews · ' + quarterName(off), ''];
-    var att = inQ.filter(function (i) { return i.status === 'attended'; });
-    lines.push('Attended (' + att.length + ')');
-    att.forEach(function (i) { lines.push('• ' + fmtSun(i.date) + ': ' + ivLabel(i) + (pm(i.by) ? ' (with ' + pmName(pm(i.by)) + ')' : '')); });
-    if (!att.length) lines.push('• None yet');
-    var mis = inQ.filter(function (i) { return i.status === 'missed'; });
-    if (mis.length) { lines.push('', 'Did not attend (' + mis.length + ')'); mis.forEach(function (i) { lines.push('• ' + fmtSun(i.date) + ': ' + ivLabel(i)); }); }
+    var came = [], missed = [];
+    inQ.forEach(function (i) {
+      var p = people(i), by = pm(i.by) ? ' (with ' + pmName(pm(i.by)) + ')' : '';
+      p.came.forEach(function (n) { came.push('• ' + fmtSun(i.date) + ': ' + n + by); });
+      p.missed.forEach(function (n) { missed.push('• ' + fmtSun(i.date) + ': ' + n + by); });
+    });
+    lines.push('Attended (' + came.length + ')'); lines = lines.concat(came.length ? came : ['• None yet']);
+    if (missed.length) { lines.push('', 'Did not attend (' + missed.length + ')'); lines = lines.concat(missed); }
     S.districts.forEach(function (d) {
       var notYet = activeComps().filter(function (c) { return c.district === d.id && !attendedInQuarter(c.id, off); });
-      if (notYet.length) { lines.push('', 'Not interviewed yet · District ' + d.id + ' (' + notYet.length + ')'); notYet.forEach(function (c) { lines.push('• ' + compLabel(c)); }); }
+      if (notYet.length) { lines.push('', 'Companionships not interviewed yet · District ' + d.id + ' (' + notYet.length + ')'); notYet.forEach(function (c) { lines.push('• ' + compLabel(c)); }); }
     });
     return lines.join('\n');
   }
@@ -789,6 +822,7 @@ window.EQP = function (api) {
         return true;
       }
       case 'p-status': setStatus(id, el.getAttribute('data-st')); return true;
+      case 'p-came': markPerson(id, el.getAttribute('data-b'), el.getAttribute('data-came') === '1'); return true;
       case 'p-away': ui.sheet = { type: 'p-away', date: el.getAttribute('data-date') }; api.render(); return true;
       case 'p-away-set': { var ad = ui.sheet.date; ui.sheet = null; setAway(ad, el.getAttribute('data-move') === '1'); return true; }
       case 'p-away-clear': { var cd = ui.sheet.date; ui.sheet = null; setBack(cd, el.getAttribute('data-restore') === '1'); return true; }
