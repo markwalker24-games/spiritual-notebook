@@ -60,7 +60,7 @@
         talksConfig = j;
         var h = sundayHash();
         if (h && data.seenSunday !== h) { ui.sundayNew = true; data.seenSunday = h; save(); }
-        if (ui.view === 'home' || (ui.sheet && ui.sheet.type === 'talk')) render();
+        if (ui.view === 'home' || ui.view === 'class' || (ui.sheet && ui.sheet.type === 'talk')) render();
       })
       .catch(function () {});
   } catch (e) {}
@@ -161,11 +161,9 @@
     var todoCount = notes.reduce(function (a, n) { return a + openTodos(n); }, 0);
     var f = ui.filter;
 
-    var h = '<header class="top"><div><h1>Spiritual Notebook</h1><div class="private">' + ICON.lock + 'Private · stays on this phone</div></div>' +
+    var h = '<header class="top"><div><h1>My Notebook</h1><div class="private">' + ICON.lock + 'Private · stays on this phone</div></div>' +
       '<div class="top-actions"><button class="icon-btn" data-act="search" aria-label="Search notes" aria-pressed="' + ui.searching + '">' + ICON.search + '</button>' +
       '<button class="icon-btn" data-act="settings" aria-label="Settings and backup">' + ICON.gear + '</button></div></header>';
-
-    if (!ui.filter && !ui.query.trim()) h += renderSunday();
 
     if (ui.searching) h += '<div class="search"><label class="sr" for="q">Search notes</label><input id="q" type="search" placeholder="Search your notes" value="' + esc(ui.query) + '" autocomplete="off"></div>';
 
@@ -241,18 +239,20 @@
       url: /^https:\/\//i.test(tw.url || '') ? tw.url : '', note: note, questions: qs };
   }
   function sundayHash() { var s = sunday(); return s ? JSON.stringify(s) : ''; }
-  function renderSunday() {
+  function renderSunday(alwaysOpen) {
     var s = sunday();
     if (!s) return '';
     // Starts open; stays closed only until the presidency posts something new.
-    var collapsed = data.sundayCollapsed === sundayHash();
+    var collapsed = !alwaysOpen && data.sundayCollapsed === sundayHash();
     var sum = s.questions.length ? s.questions.length + (s.questions.length === 1 ? ' question' : ' questions') : '';
     var h = '<section class="sunday' + (collapsed ? ' closed' : '') + '" aria-labelledby="sun-label">' +
-      '<button class="sun-head" data-act="sun-toggle" aria-expanded="' + !collapsed + '" aria-controls="sun-body">' +
-      '<span id="sun-label" class="sun-label">This Sunday in quorum' + (s.date ? ' · ' + esc(s.date) : '') + '</span>' +
-      (ui.sundayNew ? '<span class="sun-new">New</span>' : '') +
-      (collapsed && sum ? '<span class="sun-sum">' + sum + '</span>' : '') +
-      '<span class="sun-chev">' + ICON.chevDown + '</span></button>';
+      (alwaysOpen
+        ? '<div class="sun-head"><span id="sun-label" class="sun-label">This Sunday in quorum' + (s.date ? ' · ' + esc(s.date) : '') + '</span></div>'
+        : '<button class="sun-head" data-act="sun-toggle" aria-expanded="' + !collapsed + '" aria-controls="sun-body">' +
+          '<span id="sun-label" class="sun-label">This Sunday in quorum' + (s.date ? ' · ' + esc(s.date) : '') + '</span>' +
+          (ui.sundayNew ? '<span class="sun-new">New</span>' : '') +
+          (collapsed && sum ? '<span class="sun-sum">' + sum + '</span>' : '') +
+          '<span class="sun-chev">' + ICON.chevDown + '</span></button>');
     if (collapsed) return h + '</section>';
     h += '<div id="sun-body" class="sun-body">';
     if (s.title) {
@@ -269,6 +269,30 @@
       h += '</ol>';
     }
     return h + '</div></section>';
+  }
+
+  // ---------- Class tab ----------
+  function renderClass() {
+    var h = '<header class="top"><div><h1>Class</h1><div class="private">Elders quorum discussion</div></div></header><main class="list">';
+    var card = renderSunday(true);
+    h += card || '<div class="empty"><b>Nothing posted yet.</b><span>This week’s questions will show here once the presidency posts them.</span></div>';
+    if (card) h += '<p class="note-p class-hint">Tap Write beside a question to start a note in your notebook. Star the lines you want to share in class.</p>';
+    return h + '</main>';
+  }
+
+  // ---------- Bottom navigation (Notebook · Class · Presidency) ----------
+  var NAV_ICON = {
+    notebook: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5V4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>',
+    class: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    pres: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
+  };
+  function renderNav() {
+    var tabs = [['home', 'Notebook', 'notebook'], ['class', 'Class', 'class'], ['pres', 'Presidency', 'pres']];
+    return '<nav class="nav" aria-label="Sections">' + tabs.map(function (t) {
+      var on = ui.view === t[0];
+      return '<button data-act="nav" data-view="' + t[0] + '"' + (on ? ' aria-current="page" class="on"' : '') + '>' + NAV_ICON[t[2]] + '<span>' + t[1] + '</span>' +
+        (t[0] === 'class' && ui.sundayNew && !on ? '<i class="nav-dot" aria-hidden="true"></i>' : '') + '</button>';
+    }).join('') + '</nav>';
   }
 
   // Star, to-do and ink filters show the matching lines themselves, newest first.
@@ -444,6 +468,7 @@
     var s = ui.sheet, n = curNote();
     if (!s) return '';
     var h = '<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">';
+    if (s.type.indexOf('p-') === 0) { var ph = EQ ? EQ.renderSheet() : ''; return ui.sheet ? h + ph + '</div></div>' : ''; }
     if (s.type === 'tags') {
       h += '<div class="sheet-bar"><h2 id="sheet-title">Tags</h2><button class="text-btn strong" data-act="sheet-close">Done</button></div><div class="tag-grid">';
       data.tags.forEach(function (t) {
@@ -539,7 +564,7 @@
     toast(doneMsg);
   }
   function exportBackup() {
-    saveFile('spiritual-notebook-backup-' + todayStamp() + '.json', JSON.stringify(data, null, 2), 'application/json', 'Spiritual Notebook backup', 'Backup saved');
+    saveFile('eq-notebook-backup-' + todayStamp() + '.json', JSON.stringify(data, null, 2), 'application/json', 'Notebook backup', 'Backup saved');
   }
 
   // A readable copy of every note, oldest first, that opens in any browser, Word or Google Docs.
@@ -548,8 +573,8 @@
   function notesDocument() {
     var notes = data.notes.filter(function (n) { return !isBlank(n); }).sort(function (a, b) { return a.created - b.created; });
     var out = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-      '<title>Spiritual Notebook</title></head><body style="font-family: Georgia, \'Times New Roman\', serif; color: #1C1C1C; max-width: 680px; margin: 24px auto; padding: 0 16px; line-height: 1.55; font-size: 16px;">' +
-      '<h1 style="font-size: 28px; margin: 0 0 4px;">Spiritual Notebook</h1>' +
+      '<title>My Notebook</title></head><body style="font-family: Georgia, \'Times New Roman\', serif; color: #1C1C1C; max-width: 680px; margin: 24px auto; padding: 0 16px; line-height: 1.55; font-size: 16px;">' +
+      '<h1 style="font-size: 28px; margin: 0 0 4px;">My Notebook</h1>' +
       '<p style="color: #55605A; margin: 0 0 24px; font-size: 14px;">' + notes.length + (notes.length === 1 ? ' note' : ' notes') + ' · saved ' + esc(new Date().toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })) +
       ' · ★ marks lines to share in quorum</p>';
     var month = '';
@@ -573,7 +598,7 @@
     return out + '</body></html>';
   }
   function exportDocument() {
-    saveFile('Spiritual Notebook ' + todayStamp() + '.html', notesDocument(), 'text/html', 'Spiritual Notebook', 'Notes downloaded');
+    saveFile('My Notebook ' + todayStamp() + '.html', notesDocument(), 'text/html', 'My Notebook', 'Notes downloaded');
   }
   function importBackup(file) {
     var r = new FileReader();
@@ -593,7 +618,7 @@
         data.notes.forEach(function (n) { n.tags.forEach(function (t) { if (data.tags.indexOf(t) < 0) data.tags.push(t); }); });
         save(); render();
         toast(added ? 'Restored ' + added + (added === 1 ? ' note' : ' notes') : 'Backup restored, nothing new to add');
-      } catch (e) { toast('That file is not a Spiritual Notebook backup'); }
+      } catch (e) { toast('That file is not a notebook backup'); }
     };
     r.readAsText(file);
   }
@@ -607,6 +632,9 @@
     el.hidden = !ui.toast; el.textContent = ui.toast || '';
   }
 
+  // ---------- Presidency module ----------
+  var EQ = window.EQP ? window.EQP({ esc: esc, ICON: ICON, toast: toast, ui: ui, render: function () { render(); } }) : null;
+
   // ---------- Render ----------
   var app = document.getElementById('app');
   var sheetRoot = document.getElementById('sheet-root');
@@ -614,7 +642,11 @@
     document.body.classList.toggle('editor-page', ui.view === 'edit');
     if (ui.view !== 'edit' || ui.editingDateFor !== ui.editId) { ui.editingDate = ui.view === 'edit' && ui.editingDateFor === ui.editId && ui.editingDate; }
     ui.editingDateFor = ui.editId;
-    app.innerHTML = ui.view === 'edit' ? renderEditor() : ui.view === 'settings' ? renderSettings() : renderHome();
+    if (ui.view === 'class') ui.sundayNew = false;
+    var tabbed = ui.view === 'home' || ui.view === 'class' || ui.view === 'pres';
+    document.body.classList.toggle('has-nav', tabbed);
+    app.innerHTML = (ui.view === 'edit' ? renderEditor() : ui.view === 'settings' ? renderSettings()
+      : ui.view === 'class' ? renderClass() : ui.view === 'pres' ? (EQ ? EQ.render() : '') : renderHome()) + (tabbed ? renderNav() : '');
     sheetRoot.innerHTML = renderSheet();
     if (ui.view === 'edit') {
       app.querySelectorAll('.ln textarea').forEach(autosize);
@@ -763,6 +795,8 @@
       }
       case 'export': exportBackup(); break;
       case 'export-doc': exportDocument(); break;
+      case 'nav': ui.view = el.getAttribute('data-view'); ui.sheet = null; render(); window.scrollTo(0, 0); break;
+      default: if (EQ) EQ.onClick(act, el, e);
     }
   });
 
@@ -789,6 +823,7 @@
 
   document.addEventListener('input', function (e) {
     var t = e.target;
+    if (EQ && EQ.onInput(e)) return;
     if (t.id === 'q') { ui.query = t.value; var pos = t.selectionStart; render(); var q = document.getElementById('q'); if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch (er) {} } return; }
     if (t.matches && t.matches('.ln textarea')) {
       var n = curNote(), i = +t.getAttribute('data-i');
@@ -811,6 +846,7 @@
   document.addEventListener('keydown', function (e) {
     var t = e.target;
     if (e.key === 'Escape' && ui.sheet) { ui.sheet = null; render(); return; }
+    if (EQ && EQ.onKey && EQ.onKey(e)) return;
     if (!(t.matches && t.matches('.ln textarea'))) return;
     var n = curNote(), i = +t.getAttribute('data-i'), l = n.lines[i];
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -832,6 +868,7 @@
   document.addEventListener('submit', function (e) {
     e.preventDefault();
     var form = e.target.getAttribute('data-form'), n = curNote();
+    if (form && form.indexOf('p-') === 0) { if (EQ) EQ.onSubmit(form, e.target); return; }
     if (form === 'new-tag') {
       var v = document.getElementById('newtag').value.replace(/^#+/, '').trim().slice(0, 30);
       if (!v) return;
@@ -849,6 +886,7 @@
   });
 
   document.addEventListener('change', function (e) {
+    if (EQ && EQ.onChange(e)) return;
     if (e.target.id === 'note-when') {
       var n = curNote(), v = e.target.value;
       var t = v ? new Date(v).getTime() : NaN;
@@ -862,7 +900,7 @@
   document.addEventListener('visibilitychange', function () { if (document.hidden) save(); });
 
   // Expose pure helpers for testing only.
-  window.__sn = { data: function () { return data; }, notesDocument: notesDocument, matches: matches, isStarred: isStarred, openTodos: openTodos, ui: ui };
+  window.__sn = { eq: function () { return EQ; }, data: function () { return data; }, notesDocument: notesDocument, matches: matches, isStarred: isStarred, openTodos: openTodos, ui: ui };
 
   render();
 })();

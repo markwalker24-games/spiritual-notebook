@@ -6,8 +6,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC, PREV = os.path.join(ROOT, "src"), os.path.join(ROOT, "preview")
 DIST = os.path.dirname(ROOT)  # the site lives at the top of the repo
 css = open(os.path.join(SRC, "app.css")).read()
-js = open(os.path.join(SRC, "app.js")).read()
-VERSION = "1.4.0"
+js = open(os.path.join(SRC, "presidency.js")).read() + "\n" + open(os.path.join(SRC, "app.js")).read()
+VERSION = "2.0.0"
 
 FONT = '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">'
 BODY = '<div id="app"></div><div id="sheet-root"></div><div id="toast" class="toast" role="status" hidden></div>'
@@ -18,12 +18,12 @@ index = f"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Spiritual Notebook</title>
-<meta name="description" content="A private notebook for spiritual impressions, with four ink colors.">
+<title>Elders Quorum Notebook</title>
+<meta name="description" content="Notes, class discussion and presidency tools for the elders quorum.">
 <meta name="theme-color" content="#1F4D3A">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Notebook">
+<meta name="apple-mobile-web-app-title" content="EQ Notebook">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
@@ -38,6 +38,7 @@ body {{ margin: 0; }}
 </head>
 <body>
 {BODY}
+<script src="vendor/supabase.js"></script>
 <script>
 {js}
 </script>
@@ -49,8 +50,8 @@ if ('serviceWorker' in navigator) {{ window.addEventListener('load', function ()
 """
 
 manifest = {
-    "name": "Spiritual Notebook", "short_name": "Notebook",
-    "description": "A private notebook for spiritual impressions, with four ink colors.",
+    "name": "Elders Quorum Notebook", "short_name": "EQ Notebook",
+    "description": "Notes, class discussion and presidency tools for the elders quorum.",
     "start_url": "./", "scope": "./", "display": "standalone",
     "background_color": "#F4F5F2", "theme_color": "#1F4D3A",
     "icons": [
@@ -62,13 +63,14 @@ manifest = {
 
 sw = f"""// Offline cache. Bump VERSION when you change the app so phones pick up the update.
 const VERSION = 'sn-{VERSION}';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'vendor/supabase.js', 'icons/icon-192.png', 'icons/apple-touch-icon.png'];
 self.addEventListener('install', e => {{ e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); }});
 self.addEventListener('activate', e => {{ e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim())); }});
 self.addEventListener('fetch', e => {{
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  if (url.hostname.endsWith('supabase.co')) return; // live data: always from the network
   // The talk list and the page itself: try the network first so updates show up, fall back to the cache offline.
   if (url.pathname.endsWith('talks.json') || req.mode === 'navigate') {{
     e.respondWith(fetch(req).then(r => {{ const copy = r.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return r; }}).catch(() => caches.match(req).then(r => r || caches.match('index.html'))));
@@ -120,6 +122,8 @@ def build():
     if not os.path.exists(os.path.join(DIST, "talks.json")):  # never overwrite the weekly talk
         json.dump(talks, open(os.path.join(DIST, "talks.json"), "w"), indent=2)
     shutil.copy(os.path.join(SRC, "README.md"), os.path.join(DIST, "README.md"))
+    os.makedirs(os.path.join(DIST, "vendor"), exist_ok=True)
+    shutil.copy(os.path.join(ROOT, "vendor", "supabase.js"), os.path.join(DIST, "vendor", "supabase.js"))
     icon(192).save(os.path.join(DIST, "icons/icon-192.png"))
     icon(512).save(os.path.join(DIST, "icons/icon-512.png"))
     icon(512, True).save(os.path.join(DIST, "icons/icon-maskable-512.png"))
@@ -127,7 +131,7 @@ def build():
 
     # Preview page for trying it in Claude (published as an artifact, which supplies its own document skeleton).
     os.makedirs(PREV, exist_ok=True)
-    preview = f"<title>Spiritual Notebook</title>\n{FONT}\n<style>\n{css}\n</style>\n{BODY}\n<script>\n{js}\n</script>\n"
+    preview = f"<title>Elders Quorum Notebook</title>\n{FONT}\n<style>\n{css}\n</style>\n{BODY}\n<script>\n{js}\n</script>\n"
     open(os.path.join(PREV, "index.html"), "w").write(preview)
     json.dump(talks, open(os.path.join(PREV, "talks.json"), "w"), indent=2)
 

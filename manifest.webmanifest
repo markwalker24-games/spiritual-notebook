@@ -1,7 +1,7 @@
 {
-  "name": "Spiritual Notebook",
-  "short_name": "Notebook",
-  "description": "A private notebook for spiritual impressions, with four ink colors.",
+  "name": "Elders Quorum Notebook",
+  "short_name": "EQ Notebook",
+  "description": "Notes, class discussion and presidency tools for the elders quorum.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
