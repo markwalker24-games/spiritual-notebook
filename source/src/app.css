@@ -366,3 +366,6 @@ button.text-link { width: 100%; border: none; text-align: left; font: inherit; c
 .away-note { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--danger); margin-left: 6px; }
 .warn-t { color: var(--star-text); }
 .rem-group { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding-top: 6px; }
+.sheet .primary, .sheet .secondary { width: 100%; }
+.sheet .row .primary, .sheet .row .secondary, .sheet .field .row .primary { width: auto; }
+.toast { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; max-width: calc(100% - 32px); text-align: center; }

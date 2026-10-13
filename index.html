@@ -386,6 +386,9 @@ button.text-link { width: 100%; border: none; text-align: left; font: inherit; c
 .away-note { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--danger); margin-left: 6px; }
 .warn-t { color: var(--star-text); }
 .rem-group { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding-top: 6px; }
+.sheet .primary, .sheet .secondary { width: 100%; }
+.sheet .row .primary, .sheet .row .secondary, .sheet .field .row .primary { width: auto; }
+.toast { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; max-width: calc(100% - 32px); text-align: center; }
 
 </style>
 </head>
@@ -476,7 +479,7 @@ window.EQP = function (api) {
           families: S.families.filter(function (f) { return f.comp === c.id; }).map(function (f) { return f.id; })
         };
       });
-      S.interviews = rows(res[6]).map(function (i) { return { id: i.id, compId: i.comp_id, date: i.date, by: i.by_id || '', status: i.status, names: i.names, texted: i.texted || {} }; });
+      S.interviews = rows(res[6]).map(function (i) { return { id: i.id, compId: i.comp_id, date: i.date, by: i.by_id || '', status: i.status, names: i.names, texted: i.texted || {}, movedFrom: i.moved_from || null }; });
       S.lots = rows(res[7]);
       rows(res[8]).forEach(function (s) { S.settings[s.key] = s.value; });
       S.away = rows(res[9]).map(function (a) { return { who: a.presidency_id, date: a.date }; });
@@ -632,21 +635,31 @@ window.EQP = function (api) {
     if (up) return save([db().from('interviews').update({ date: date, by_id: by || null, texted: {} }).eq('id', up.id)], 'Moved to ' + fmtSun(date));
     return save([db().from('interviews').insert({ comp_id: cid, date: date, by_id: by || null, status: 'scheduled' })], 'Scheduled for ' + fmtSun(date));
   }
-  // Mark a Sunday away (or available again). Interviews already set for that day move to the next open Sundays.
-  function toggleAway(date) {
+  // Away Sundays. Nothing moves without asking: tapping a Sunday opens a sheet that offers to move that day's
+  // interviews (or, when un-marking, to bring back the ones that were moved off it).
+  function onDay(who, date) { return S.interviews.filter(function (i) { return i.by === who && i.date === date && i.status === 'scheduled'; }); }
+  function movedOff(who, date) { return S.interviews.filter(function (i) { return i.by === who && i.movedFrom === date && i.status === 'scheduled'; }); }
+  function setAway(date, move) {
     var who = S.me, c = client();
-    if (isAway(who, date)) return save([c.from('unavailable').delete().eq('presidency_id', who).eq('date', date)], fmtSun(date) + ' is available again');
     S.away.push({ who: who, date: date });
-    var moving = S.interviews.filter(function (i) { return i.by === who && i.date === date && i.status === 'scheduled'; });
-    var extra = {}, ops = [c.from('unavailable').insert({ presidency_id: who, date: date })], to = [];
-    var start = iso(addDays(parseIso(date), 7));
-    moving.forEach(function (i) {
-      var s = nextOpen(who, start, extra);
-      if (!s) return;
-      extra[s] = (extra[s] || 0) + 1; to.push(fmtSun(s));
-      ops.push(c.from('interviews').update({ date: s, texted: {} }).eq('id', i.id));
-    });
-    return save(ops, moving.length ? 'Away ' + fmtSun(date) + '. Moved ' + moving.length + (moving.length === 1 ? ' interview to ' : ' interviews to ') + to.filter(function (x, k) { return to.indexOf(x) === k; }).join(' and ') : 'Marked away ' + fmtSun(date));
+    var ops = [c.from('unavailable').insert({ presidency_id: who, date: date })], to = [];
+    if (move) {
+      var extra = {}, start = iso(addDays(parseIso(date), 7));
+      onDay(who, date).forEach(function (i) {
+        var s2 = nextOpen(who, start, extra);
+        if (!s2) return;
+        extra[s2] = (extra[s2] || 0) + 1; if (to.indexOf(fmtSun(s2)) < 0) to.push(fmtSun(s2));
+        ops.push(c.from('interviews').update({ date: s2, moved_from: date, texted: {} }).eq('id', i.id));
+      });
+    }
+    return save(ops, 'Away ' + fmtSun(date) + (to.length ? '. Moved to ' + to.join(' and ') : ''));
+  }
+  function setBack(date, restore) {
+    var who = S.me, c = client();
+    var ops = [c.from('unavailable').delete().eq('presidency_id', who).eq('date', date)];
+    var back = restore ? movedOff(who, date) : [];
+    back.forEach(function (i) { ops.push(c.from('interviews').update({ date: date, moved_from: null, texted: {} }).eq('id', i.id)); });
+    return save(ops, fmtSun(date) + ' is available again' + (back.length ? '. ' + back.length + (back.length === 1 ? ' interview' : ' interviews') + ' moved back' : ''));
   }
   // Give every companionship that still needs an interview this quarter a slot with its district leader.
   function fillSchedule() {
@@ -857,7 +870,7 @@ window.EQP = function (api) {
     var weeks = Math.min(26, Math.max(6, Math.round((parseIso(last) - nextSunday()) / 6048e5) + 3));
     var open = needsScheduling().filter(function (c) { return leaderOf(c) === me; }).length;
     var h = '<section class="pcard"><div class="pcard-head"><h2>Your Sundays</h2><span class="count">' + mine.length + ' interviews ahead</span></div>' +
-      '<p class="note-p">' + perSunday() + ' companionships from your district each Sunday, right after church. Tap a Sunday you’ll be away and its interviews move to your next open Sundays.</p><div class="sundays">';
+      '<p class="note-p">' + perSunday() + ' companionships from your district each Sunday, right after church. Tap a Sunday you’ll be away; you’ll be asked whether to reschedule that day’s interviews.</p><div class="sundays">';
     upcomingSundays(weeks).forEach(function (d) {
       var away = isAway(me, d), n = bookedOn(me, d), qEnd = d >= iso(quarterStart(1));
       h += '<button class="sunday-chip' + (away ? ' away' : '') + (qEnd ? ' nextq' : '') + '" data-act="p-away" data-date="' + d + '" aria-pressed="' + away + '" aria-label="' + esc(fmtSun(d)) + (away ? ', away. Tap if you can be there' : ', ' + n + ' interviews. Tap if you’ll be away') + '">' +
@@ -1058,6 +1071,26 @@ window.EQP = function (api) {
         '<div class="row">' + (up ? '<button class="secondary" data-act="p-move" data-id="' + up.id + '">' + PI.cal + 'Move interview</button>' : '<button class="secondary" data-act="p-schedule" data-comp="' + c.id + '">' + PI.cal + 'Schedule interview</button>') + '</div>';
       var hist = S.interviews.filter(function (x) { return x.compId === c.id && x.status !== 'scheduled'; }).sort(byDate).reverse().slice(0, 4);
       if (hist.length) h += '<div class="hist">' + hist.map(function (x) { return '<span class="badge ' + (x.status === 'attended' ? 'b-done' : 'b-need') + '">' + fmtSun(x.date) + ' · ' + (x.status === 'attended' ? 'attended' : 'didn’t attend') + '</span>'; }).join('') + '</div>';
+    } else if (s.type === 'p-away') {
+      var who = S.me, d = s.date, away = isAway(who, d);
+      if (!away) {
+        var day = onDay(who, d);
+        h += bar('Away on ' + fmtSun(d) + '?', 'Cancel');
+        if (day.length) {
+          h += '<p class="note-p">You have ' + day.length + (day.length === 1 ? ' interview' : ' interviews') + ' that day: ' + esc(day.map(ivLabel).join('; ')) + '.</p>' +
+            '<p class="note-p">Would you like to reschedule ' + (day.length === 1 ? 'it' : 'them') + ' to another Sunday in the future?</p>' +
+            '<button class="primary" data-act="p-away-set" data-move="1">Mark away and reschedule</button>' +
+            '<button class="secondary" data-act="p-away-set" data-move="0">Mark away, keep ' + (day.length === 1 ? 'it' : 'them') + ' on ' + esc(fmtSun(d)) + '</button>';
+        } else h += '<p class="note-p">You have no interviews that day. Marking it keeps new interviews off it.</p><button class="primary" data-act="p-away-set" data-move="0">Mark away</button>';
+      } else {
+        var back = movedOff(who, d);
+        h += bar('Available on ' + fmtSun(d) + '?', 'Cancel');
+        if (back.length) {
+          h += '<p class="note-p">' + back.length + (back.length === 1 ? ' interview was' : ' interviews were') + ' moved off this Sunday: ' + esc(back.map(function (i) { return ivLabel(i) + ' (now ' + fmtSun(i.date) + ')'; }).join('; ')) + '.</p>' +
+            '<button class="primary" data-act="p-away-clear" data-restore="1">I’m available. Move ' + (back.length === 1 ? 'it' : 'them') + ' back</button>' +
+            '<button class="secondary" data-act="p-away-clear" data-restore="0">I’m available. Leave ' + (back.length === 1 ? 'it' : 'them') + ' where ' + (back.length === 1 ? 'it is' : 'they are') + '</button>';
+        } else h += '<button class="primary" data-act="p-away-clear" data-restore="0">I’m available that day</button>';
+      }
     } else if (s.type === 'p-phone') {
       var pb = bro(s.b);
       if (!pb) { ui.sheet = null; return ''; }
@@ -1137,7 +1170,9 @@ window.EQP = function (api) {
         return true;
       }
       case 'p-status': setStatus(id, el.getAttribute('data-st')); return true;
-      case 'p-away': toggleAway(el.getAttribute('data-date')); return true;
+      case 'p-away': ui.sheet = { type: 'p-away', date: el.getAttribute('data-date') }; api.render(); return true;
+      case 'p-away-set': { var ad = ui.sheet.date; ui.sheet = null; setAway(ad, el.getAttribute('data-move') === '1'); return true; }
+      case 'p-away-clear': { var cd = ui.sheet.date; ui.sheet = null; setBack(cd, el.getAttribute('data-restore') === '1'); return true; }
       case 'p-fill': fillSchedule(); return true;
       case 'p-rem-open': S.remOpen = true; api.render(); return true;
       case 'p-text': ui.pText = ui.pText === id ? null : id; api.render(); return true;
@@ -1250,7 +1285,7 @@ window.EQP = function (api) {
   start();
   return {
     render: render, renderSheet: renderSheet, onClick: onClick, onSubmit: onSubmit, onChange: onChange, onInput: onInput, onKey: onKey,
-    _state: function () { return S; }, _nextOpen: nextOpen, _toggleAway: toggleAway, _summary: summaryText, _reminder: reminderText
+    _state: function () { return S; }, _nextOpen: nextOpen, _summary: summaryText, _reminder: reminderText
   };
 };
 
