@@ -369,3 +369,9 @@ button.text-link { width: 100%; border: none; text-align: left; font: inherit; c
 .sheet .primary, .sheet .secondary { width: 100%; }
 .sheet .row .primary, .sheet .row .secondary, .sheet .field .row .primary { width: auto; }
 .toast { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; max-width: calc(100% - 32px); text-align: center; }
+/* Map: assigned or not, in two calm colors that also differ in lightness */
+:root { --lot-yes: #C7DCCD; --lot-no: #E8C79A; --lot-yes-ink: #2F5B41; --lot-no-ink: #7A4F12; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --lot-yes: #34503F; --lot-no: #6E5330; --lot-yes-ink: #A9D6B9; --lot-no-ink: #F0C98F; } }
+:root[data-theme="dark"] { --lot-yes: #34503F; --lot-no: #6E5330; --lot-yes-ink: #A9D6B9; --lot-no-ink: #F0C98F; }
+.b-yes { background: var(--lot-yes); color: var(--lot-yes-ink); }
+.b-no { background: var(--lot-no); color: var(--lot-no-ink); }

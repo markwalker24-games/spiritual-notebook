@@ -161,7 +161,7 @@
     var todoCount = notes.reduce(function (a, n) { return a + openTodos(n); }, 0);
     var f = ui.filter;
 
-    var h = '<header class="top"><div><h1>My Notebook</h1><div class="private">' + ICON.lock + 'Private · stays on this phone</div></div>' +
+    var h = '<header class="top"><div><h1>EQ Notebook</h1><div class="private">' + ICON.lock + 'Private · stays on this phone</div></div>' +
       '<div class="top-actions"><button class="icon-btn" data-act="search" aria-label="Search notes" aria-pressed="' + ui.searching + '">' + ICON.search + '</button>' +
       '<button class="icon-btn" data-act="settings" aria-label="Settings and backup">' + ICON.gear + '</button></div></header>';
 
@@ -273,10 +273,10 @@
 
   // ---------- Class tab ----------
   function renderClass() {
-    var h = '<header class="top"><div><h1>Class</h1><div class="private">Elders quorum discussion</div></div></header><main class="list">';
+    var h = '<header class="top"><div><h1>Quorum Meeting</h1><div class="private">This Sunday’s elders quorum discussion</div></div></header><main class="list">';
     var card = renderSunday(true);
     h += card || '<div class="empty"><b>Nothing posted yet.</b><span>This week’s questions will show here once the presidency posts them.</span></div>';
-    if (card) h += '<p class="note-p class-hint">Tap Write beside a question to start a note in your notebook. Star the lines you want to share in class.</p>';
+    if (card) h += '<p class="note-p class-hint">Tap Write beside a question to start a note in your notebook. Star the lines you want to share in quorum meeting.</p>';
     return h + '</main>';
   }
 
@@ -287,7 +287,7 @@
     pres: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
   };
   function renderNav() {
-    var tabs = [['home', 'Notebook', 'notebook'], ['class', 'Class', 'class'], ['pres', 'Presidency', 'pres']];
+    var tabs = [['home', 'Notebook', 'notebook'], ['class', 'Quorum', 'class'], ['pres', 'Presidency', 'pres']];
     return '<nav class="nav" aria-label="Sections">' + tabs.map(function (t) {
       var on = ui.view === t[0];
       return '<button data-act="nav" data-view="' + t[0] + '"' + (on ? ' aria-current="page" class="on"' : '') + '>' + NAV_ICON[t[2]] + '<span>' + t[1] + '</span>' +
@@ -573,8 +573,8 @@
   function notesDocument() {
     var notes = data.notes.filter(function (n) { return !isBlank(n); }).sort(function (a, b) { return a.created - b.created; });
     var out = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-      '<title>My Notebook</title></head><body style="font-family: Georgia, \'Times New Roman\', serif; color: #1C1C1C; max-width: 680px; margin: 24px auto; padding: 0 16px; line-height: 1.55; font-size: 16px;">' +
-      '<h1 style="font-size: 28px; margin: 0 0 4px;">My Notebook</h1>' +
+      '<title>EQ Notebook</title></head><body style="font-family: Georgia, \'Times New Roman\', serif; color: #1C1C1C; max-width: 680px; margin: 24px auto; padding: 0 16px; line-height: 1.55; font-size: 16px;">' +
+      '<h1 style="font-size: 28px; margin: 0 0 4px;">EQ Notebook</h1>' +
       '<p style="color: #55605A; margin: 0 0 24px; font-size: 14px;">' + notes.length + (notes.length === 1 ? ' note' : ' notes') + ' · saved ' + esc(new Date().toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })) +
       ' · ★ marks lines to share in quorum</p>';
     var month = '';
@@ -598,7 +598,7 @@
     return out + '</body></html>';
   }
   function exportDocument() {
-    saveFile('My Notebook ' + todayStamp() + '.html', notesDocument(), 'text/html', 'My Notebook', 'Notes downloaded');
+    saveFile('EQ Notebook ' + todayStamp() + '.html', notesDocument(), 'text/html', 'EQ Notebook', 'Notes downloaded');
   }
   function importBackup(file) {
     var r = new FileReader();

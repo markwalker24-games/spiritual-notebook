@@ -419,7 +419,7 @@ window.EQP = function (api) {
     var miss = missedOpen();
     if (miss.length) att.push({ txt: miss.length + (miss.length === 1 ? ' missed interview needs' : ' missed interviews need') + ' a new date', tab: 'interviews' });
     var homesOpen = S.lots.filter(function (l) { return l.kind === 'home' && !S.families.some(function (f) { return f.lot === l.id && f.comp; }); });
-    if (homesOpen.length) att.push({ txt: homesOpen.length + ' homes on the map have no ministers', tab: 'map', f: 'open' });
+    if (homesOpen.length) att.push({ txt: homesOpen.length + ' homes on the map have no companionship assigned', tab: 'map', f: 'open' });
     var famsOpen = S.families.filter(function (f) { return !f.comp; });
     if (famsOpen.length) att.push({ txt: famsOpen.length + (famsOpen.length === 1 ? ' family has' : ' families have') + ' no ministers', tab: 'ministering' });
     var noFam = activeComps().filter(function (c) { return !c.families.length; });
@@ -558,15 +558,16 @@ window.EQP = function (api) {
     var homes = S.lots.filter(function (l) { return l.kind === 'home'; });
     var infos = {}; S.lots.forEach(function (l) { infos[l.id] = lotInfo(l); });
     var open = homes.filter(function (l) { return infos[l.id].status === 'open'; });
+    var assignedN = homes.length - open.length;
     var h = '<div class="chips-row" role="group" aria-label="Show on the map">' +
-      [['all', 'Everything', null], ['open', 'No ministers · ' + open.length, 'var(--open)']].concat(S.districts.map(function (d) { var l = pm(d.leader); return [String(d.id), 'District ' + d.id + (l ? ' · ' + l.first : ''), DCOL[d.id]]; }))
+      [['all', 'All homes · ' + homes.length, null], ['assigned', 'Assigned · ' + assignedN, 'var(--lot-yes)'], ['open', 'Not assigned · ' + open.length, 'var(--lot-no)']]
         .map(function (o) { return '<button class="chip' + (f === o[0] ? ' on' : '') + '" data-act="p-mapf" data-f="' + o[0] + '" aria-pressed="' + (f === o[0]) + '">' + (o[2] ? '<i class="sw" style="background:' + o[2] + '"></i>' : '') + esc(o[1]) + '</button>'; }).join('') + '</div>';
-    h += '<div class="pmap' + (S.mapZoom ? ' zoom' : '') + '"><button class="mini pmap-zoom" data-act="p-mapzoom" aria-pressed="' + !!S.mapZoom + '">' + (S.mapZoom ? 'Zoom out' : 'Zoom in') + '</button><div class="pmap-scroll"><svg viewBox="100 225 800 935" role="img" aria-label="Neighborhood map. Each home is colored by its ministering district, orange where no one ministers.">';
+    h += '<div class="pmap' + (S.mapZoom ? ' zoom' : '') + '"><button class="mini pmap-zoom" data-act="p-mapzoom" aria-pressed="' + !!S.mapZoom + '">' + (S.mapZoom ? 'Zoom out' : 'Zoom in') + '</button><div class="pmap-scroll"><svg viewBox="100 225 800 935" role="img" aria-label="Neighborhood map. Each home is colored by whether a ministering companionship is assigned to it.">';
     h += '<rect x="100" y="225" width="800" height="935" class="pm-road"></rect>';
     S.lots.forEach(function (l) {
       var inf = infos[l.id];
-      var show = f === 'all' || (f === 'open' ? inf.status === 'open' : inf.status === 'assigned' && String(inf.district) === f);
-      var fill = inf.status === 'assigned' ? DCOL[inf.district] : inf.status === 'open' ? 'var(--open)' : 'var(--lot-other)';
+      var show = f === 'all' || inf.status === f;
+      var fill = inf.status === 'assigned' ? 'var(--lot-yes)' : inf.status === 'open' ? 'var(--lot-no)' : 'var(--lot-other)';
       var pts = (l.poly || []).map(function (p) { return p[0] + ',' + p[1]; }).join(' ');
       var nm = l.label.split(' / ')[0];
       var fs = nm.length > 10 ? 9 : nm.length > 7 ? 10.5 : 12;
@@ -580,15 +581,15 @@ window.EQP = function (api) {
     if (sel) {
       var inf = infos[sel.id];
       h += '<section class="pcard"><div class="pcard-head"><h2>' + esc(sel.label) + '</h2><span class="count">' + esc(sel.num) + '</span></div>';
-      if (inf.status === 'other') h += '<p class="note-p">Not a household.</p>';
-      else if (!inf.fams.length) h += '<p class="note-p">This home isn’t on the ministering list. It may need ministers, or it may not be a member household.</p>';
+      h += '<p class="note-p"><span class="badge ' + (inf.status === 'assigned' ? 'b-yes' : inf.status === 'open' ? 'b-no' : '') + '">' + (inf.status === 'assigned' ? 'Assigned' : inf.status === 'open' ? 'Not assigned' : 'Not a household') + '</span></p>';
+      if (inf.status !== 'other' && !inf.fams.length) h += '<p class="note-p">This home isn’t on the ministering list. It may need ministers, or it may not be a member household.</p>';
       inf.fams.forEach(function (fm) {
         var c = fm.comp ? comp(fm.comp) : null;
-        h += '<div class="trow"><span>' + esc(famName(fm)) + '<small class="phone">' + (c ? 'Ministers: ' + esc(compLabel(c)) + ' · District ' + c.district : 'No ministers') + '</small></span>' + (c ? '<button class="text-btn" data-act="p-comp" data-id="' + c.id + '">Open</button>' : '') + '</div>';
+        h += '<div class="trow"><span>' + esc(famName(fm)) + '<small class="phone">' + (c ? 'Ministers: ' + esc(compLabel(c)) : 'No ministers assigned') + '</small></span>' + (c ? '<button class="text-btn" data-act="p-comp" data-id="' + c.id + '">Open</button>' : '') + '</div>';
       });
       h += '</section>';
     } else h += '<p class="note-p">Tap a home to see who lives there and who ministers to them.</p>';
-    if (open.length) h += '<section class="pcard"><div class="pcard-head"><h2>Homes with no ministers</h2><span class="count">' + open.length + '</span></div><div class="tag-grid">' +
+    if (open.length) h += '<section class="pcard"><div class="pcard-head"><h2>Not assigned</h2><span class="count">' + open.length + '</span></div><div class="tag-grid">' +
       open.slice().sort(function (a, b) { return a.label < b.label ? -1 : 1; }).map(function (l) { return '<button class="tag" data-act="p-lot" data-id="' + l.id + '">' + esc(l.label) + ' ' + esc(l.num) + '</button>'; }).join('') + '</div>' +
       '<p class="note-p">Not on the elders quorum ministering list. Some may not be member households.</p></section>';
     return h;
